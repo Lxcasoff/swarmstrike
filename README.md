@@ -104,9 +104,32 @@ swarmstrike engagement sign engagement.yaml
 # Confirm the contract says what you think it says.
 swarmstrike engagement check engagement.yaml app.client.example 10.0.0.5
 
-# Run it.
+# Run it — in the terminal…
 swarmstrike run engagement.yaml --tui
+
+# …or in the browser.
+pip install -e '.[web]'
+swarmstrike serve          # http://127.0.0.1:8787
 ```
+
+See the interface without touching anything: open
+`http://127.0.0.1:8787/?demo=1`, which replays a scripted campaign through the
+same renderers with no backend and no target.
+
+---
+
+## The dashboard
+
+`swarmstrike serve` gives you the campaign as it happens: each agent as an
+animated avatar whose state comes from real events — working while a tool runs,
+thinking while it reasons over a finding, a burst when it proposes one, a shake
+when the contract refuses a command. Findings appear as they are proposed and
+change as the arbiter rules on them; clicking one opens the debate behind it.
+The kill switch is in the header.
+
+It binds to localhost. A campaign record describes unremediated vulnerabilities
+in a client's systems and the dashboard has no authentication of its own, so
+putting it anywhere else needs a deliberate decision and something in front of it.
 
 ---
 
@@ -186,12 +209,24 @@ directly. Structured the way an assessment report should be:
   refusals that show the scope boundary held
 - The limits of the assessment, stated plainly
 
-Rebuild it any time from the campaign record, and optionally have the reporter
-agent write the summary in prose:
+Markdown is the default; `--format html` adds a styled, printable version with
+two charts, and `--format pdf` needs the `pdf` extra. Rebuild any of them from
+the campaign record at any time, and optionally have the reporter agent write
+the summary in prose:
 
 ```bash
-swarmstrike report campaigns/ENG-2026-014-… --narrate
+swarmstrike report campaigns/ENG-2026-014-… --format all --narrate
 ```
+
+The HTML report needs no scripts, fonts or network, and prints to A4. Its
+evidence sections are autoescaped — a reflected-XSS finding whose payload ran
+in the client's browser when they opened the report would be a vulnerability
+delivered by the deliverable.
+
+The second chart plots each finding by CVSS exploitability against impact,
+both taken from its vector. It is deliberately not a likelihood-and-impact
+matrix: the engagement produces no likelihood data, and that axis would be a
+guess presented as a measurement.
 
 ---
 
@@ -214,10 +249,17 @@ ceiling.
 
 ## Status
 
-Early. The safety-critical parts — the contract, scope enforcement, the audit
-chain, the budget ceiling, CVSS scoring — are implemented and tested. The
-agent prompts, the debate protocol and the report are implemented and want
-real engagements to tune them.
+Early, and honest about where the line is.
+
+**Tested.** The contract and its signing, scope enforcement, the audit chain,
+the budget ceiling and CVSS scoring — 48 tests, including every command shape
+that must never reach a target, and the report's escaping of
+target-controlled evidence.
+
+**Implemented but not yet exercised against a live engagement.** The agent
+roster, the lead's delegation, the challenge round, and the toolbox image.
+These need a first real campaign to tune, and the prompts in particular will
+want iteration against findings a client actually cares about.
 
 ```bash
 pytest
