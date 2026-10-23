@@ -1,0 +1,99 @@
+# swarmstrike assessment toolbox.
+#
+# Agents never execute on the host. Every command they propose runs inside a
+# throwaway container built from this image, with a read-only root filesystem,
+# no capabilities beyond the raw sockets a SYN scan needs, and bind mounts
+# limited to the campaign workspace.
+#
+#   docker build -t swarmstrike/toolbox:latest -f docker/Dockerfile.toolbox .
+#
+# Pin the base image digest for a real engagement: a report that says what was
+# tested should be reproducible, and `rolling` is not.
+FROM kalilinux/kali-rolling:latest
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    LANG=C.UTF-8 \
+    PATH="/opt/tools/bin:${PATH}"
+
+# --- Assessment tooling -----------------------------------------------------
+# Kept to what the tool catalog actually dispatches. Adding a binary here is
+# not enough to make it reachable: it must also be in ALLOWED_BINARIES in
+# swarmstrike/tools/catalog.py, and every command still passes the scope guard.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ca-certificates curl wget git jq xsltproc \
+        dnsutils whois \
+        nmap masscan \
+        nikto sslscan \
+        sqlmap \
+        smbclient snmp ldap-utils \
+        seclists \
+        python3 python3-pip pipx \
+    && rm -rf /var/lib/apt/lists/*
+
+# --- ProjectDiscovery and Go-based tooling ----------------------------------
+# Installed from release archives rather than built, to keep the image small
+# and the versions explicit. Bump these deliberately; a scanner version is part
+# of what an engagement should be able to state.
+ARG TARGETARCH=amd64
+ARG NUCLEI_VERSION=3.3.5
+ARG HTTPX_VERSION=1.6.9
+ARG SUBFINDER_VERSION=2.6.6
+ARG DNSX_VERSION=1.2.1
+ARG KATANA_VERSION=1.1.2
+ARG FFUF_VERSION=2.1.0
+
+RUN set -eux; \
+    mkdir -p /opt/tools/bin /tmp/dl; \
+    cd /tmp/dl; \
+    fetch() { \
+        name="$1"; version="$2"; url="$3"; \
+        echo "installing ${name} ${version}"; \
+        curl -fsSL -o "${name}.zip" "${url}"; \
+        unzip -qo "${name}.zip" -d "${name}"; \
+        find "${name}" -type f -name "${name}" -exec install -m 0755 {} /opt/tools/bin/ \; ; \
+    }; \
+    apt-get update && apt-get install -y --no-install-recommends unzip && rm -rf /var/lib/apt/lists/*; \
+    fetch nuclei "${NUCLEI_VERSION}" \
+        "https://github.com/projectdiscovery/nuclei/releases/download/v${NUCLEI_VERSION}/nuclei_${NUCLEI_VERSION}_linux_${TARGETARCH}.zip"; \
+    fetch httpx "${HTTPX_VERSION}" \
+        "https://github.com/projectdiscovery/httpx/releases/download/v${HTTPX_VERSION}/httpx_${HTTPX_VERSION}_linux_${TARGETARCH}.zip"; \
+    fetch subfinder "${SUBFINDER_VERSION}" \
+        "https://github.com/projectdiscovery/subfinder/releases/download/v${SUBFINDER_VERSION}/subfinder_${SUBFINDER_VERSION}_linux_${TARGETARCH}.zip"; \
+    fetch dnsx "${DNSX_VERSION}" \
+        "https://github.com/projectdiscovery/dnsx/releases/download/v${DNSX_VERSION}/dnsx_${DNSX_VERSION}_linux_${TARGETARCH}.zip"; \
+    fetch katana "${KATANA_VERSION}" \
+        "https://github.com/projectdiscovery/katana/releases/download/v${KATANA_VERSION}/katana_${KATANA_VERSION}_linux_${TARGETARCH}.zip"; \
+    curl -fsSL -o ffuf.tar.gz \
+        "https://github.com/ffuf/ffuf/releases/download/v${FFUF_VERSION}/ffuf_${FFUF_VERSION}_linux_${TARGETARCH}.tar.gz"; \
+    tar -xzf ffuf.tar.gz ffuf && install -m 0755 ffuf /opt/tools/bin/; \
+    rm -rf /tmp/dl
+
+# Nuclei templates, baked in so a campaign does not depend on fetching them
+# mid-engagement and so the template set is fixed for the duration.
+RUN nuclei -update-templates -templates-directory /opt/tools/nuclei-templates \
+    -duc -silent || true
+ENV NUCLEI_TEMPLATES=/opt/tools/nuclei-templates
+
+# --- Cloud and dependency scanning -----------------------------------------
+RUN pipx install --global prowler || true
+RUN set -eux; \
+    TRIVY_VERSION=0.58.1; \
+    curl -fsSL -o /tmp/trivy.tar.gz \
+        "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"; \
+    tar -xzf /tmp/trivy.tar.gz -C /tmp trivy; \
+    install -m 0755 /tmp/trivy /opt/tools/bin/; \
+    rm -f /tmp/trivy.tar.gz /tmp/trivy
+
+# --- Unprivileged user ------------------------------------------------------
+# Tools run as this user. The container also drops all capabilities and mounts
+# its root filesystem read-only, so /tmp (a tmpfs) and /work are the only
+# writable paths.
+RUN useradd --create-home --shell /usr/sbin/nologin --uid 1000 assessor \
+    && mkdir -p /work && chown assessor:assessor /work
+
+USER assessor
+WORKDIR /work
+
+# No ENTRYPOINT: the executor passes the full argument vector, already
+# validated against the engagement contract, as the container command.
+CMD ["/bin/sh", "-c", "echo 'swarmstrike toolbox — invoked with a command by the executor'"]

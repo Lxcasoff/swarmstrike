@@ -1,0 +1,346 @@
+---
+title: "{{ meta.mission }} — {{ meta.client }}"
+subtitle: "Security assessment report"
+reference: "{{ meta.reference or meta.id }}"
+date: "{{ generated_on }}"
+classification: "Confidential — {{ meta.client }} and authorized recipients only"
+---
+
+# {{ meta.mission }}
+
+**{{ meta.client }}**
+
+| | |
+|---|---|
+| Report reference | {{ meta.reference or meta.id }} |
+| Engagement reference | {{ meta.id }} |
+| Assessment window | {{ window.start }} → {{ window.end }} |
+| Report issued | {{ generated_on }} |
+| Authorized by | {{ meta.authorized_by.name }}, {{ meta.authorized_by.role }} |
+| Authorization on file | {{ meta.authorized_by.authorization_ref }} |
+| Classification | Confidential |
+
+> This report documents an authorized security assessment carried out under the
+> engagement referenced above. It contains information about unremediated
+> weaknesses and should be handled accordingly.
+
+---
+
+# 1. Executive summary
+
+{{ executive_summary }}
+
+## 1.1 Overall risk
+
+**{{ risk_level }}**
+
+{{ risk_statement }}
+
+## 1.2 Findings at a glance
+
+| Severity | Confirmed |
+|---|---:|
+| Critical | {{ counts.critical }} |
+| High | {{ counts.high }} |
+| Medium | {{ counts.medium }} |
+| Low | {{ counts.low }} |
+| Informational | {{ counts.none }} |
+| **Total confirmed** | **{{ counts.total }}** |
+
+{% if counts.theoretical %}
+A further {{ counts.theoretical }} weakness(es) are reported as unproven in
+section 5. These were identified but could not be confirmed within the rules of
+engagement, and should be verified by the {{ meta.client }} team.
+{% endif %}
+
+## 1.3 Priorities
+
+{% if priorities %}
+The following should be addressed first, in this order:
+
+{% for item in priorities %}
+{{ loop.index }}. **{{ item.title }}** ({{ item.severity | capitalize }}{% if item.cvss_score %}, CVSS {{ item.cvss_score }}{% endif %}) — {{ item.asset }}
+   {{ item.one_line }}
+{% endfor %}
+{% else %}
+No confirmed findings require prioritised remediation.
+{% endif %}
+
+---
+
+# 2. Scope and authorization
+
+## 2.1 Authorized scope
+
+{% if scope.domains %}
+**Domains**
+
+{% for domain in scope.domains %}
+- `{{ domain.name }}`{{ " and its subdomains" if domain.include_subdomains else "" }}
+{% endfor %}
+
+{% endif %}
+{% if scope.cidrs %}
+**Address ranges**
+
+{% for cidr in scope.cidrs %}
+- `{{ cidr }}`
+{% endfor %}
+
+{% endif %}
+{% if scope.ips %}
+**Addresses**
+
+{% for ip in scope.ips %}
+- `{{ ip }}`
+{% endfor %}
+
+{% endif %}
+{% if scope.urls %}
+**Applications**
+
+{% for url in scope.urls %}
+- {{ url }}
+{% endfor %}
+
+{% endif %}
+
+## 2.2 Exclusions
+
+{% if exclusions.any %}
+The following were excluded from testing at {{ meta.client }}'s instruction and
+were not assessed:
+
+{% for item in exclusions.entries %}
+- {{ item }}
+{% endfor %}
+{% else %}
+No exclusions were defined for this engagement.
+{% endif %}
+
+## 2.3 Rules of engagement
+
+| Constraint | Setting |
+|---|---|
+| Testing intensity | {{ roe.intensity }} |
+| Maximum request rate | {{ roe.max_requests_per_second }} per second |
+| Proof-of-concept exploitation | {{ "Authorized, stopping at proof" if roe.exploitation.allowed else "Not authorized" }} |
+| Authentication testing | {{ "Authorized against named test accounts only" if roe.credential_testing.allowed else "Not authorized" }} |
+| Denial of service | Forbidden |
+| Data modification | Forbidden |
+| Persistence | Forbidden |
+| Social engineering | Forbidden |
+
+Constraints marked forbidden were enforced technically, not by convention:
+commands matching them were refused before execution. Section 7 records the
+refusals that occurred.
+
+---
+
+# 3. Methodology
+
+Testing followed the Penetration Testing Execution Standard (PTES) phases,
+with web application testing aligned to the OWASP Web Security Testing Guide
+(WSTG) and severities scored using CVSS v3.1.
+
+| Phase | Activity | Coverage |
+|---|---|---|
+| Intelligence gathering | Attack surface enumeration, DNS and certificate analysis, technology fingerprinting | {{ coverage.assets }} assets identified |
+| Vulnerability analysis | Service and version identification, templated checks, configuration review | {{ coverage.commands }} tool invocations |
+| Exploitation | Proof-of-concept confirmation, stopping at proof | {{ counts.total }} findings confirmed |
+| Reporting | Peer review, adversarial challenge and adjudication of every finding | {{ coverage.rulings }} findings adjudicated |
+
+## 3.1 How findings were validated
+
+Every finding in this report was challenged before inclusion. Each one was
+reviewed by a second assessor from a different discipline, then examined by a
+reviewer whose specific task was to establish that it was a false positive, an
+overstatement or a duplicate. An adjudicator then ruled on the evidence and set
+the severity recorded here.
+
+Findings that did not survive that process are not presented as findings. They
+remain in the engagement record with the reasoning that rejected them, and are
+available to {{ meta.client }} on request. Findings that were plausible but
+could not be proven within the rules of engagement appear in section 5,
+labelled as unproven.
+
+{% if coverage.rejected %}
+{{ coverage.rejected }} proposed finding(s) were rejected during this process.
+{% endif %}
+
+---
+
+# 4. Confirmed findings
+
+{% if findings %}
+{% for finding in findings %}
+## {{ finding.id }} — {{ finding.title }}
+
+| | |
+|---|---|
+| Severity | **{{ finding.severity | capitalize }}**{% if finding.cvss_score %} (CVSS {{ finding.cvss_score }}){% endif %} |
+{% if finding.cvss_vector %}| CVSS v3.1 vector | `{{ finding.cvss_vector }}` |
+{% endif %}| Affected asset | `{{ finding.asset }}` |
+| Category | {{ finding.domain | capitalize }} |
+{% if finding.cwe %}| CWE | {{ finding.cwe }} |
+{% endif %}{% if finding.owasp_wstg %}| OWASP WSTG | {{ finding.owasp_wstg }} |
+{% endif %}{% if finding.mitre_attack %}| MITRE ATT&CK | {{ finding.mitre_attack }} |
+{% endif %}| Confidence | {{ "%.0f" | format(finding.confidence * 100) }}% |
+
+### Description
+
+{{ finding.description or finding.summary }}
+
+### Impact
+
+{{ finding.impact or "Not stated." }}
+
+{% if finding.evidence %}
+### Reproduction
+
+{% for item in finding.evidence %}
+{% if item.label %}**{{ item.label }}**{% endif %}
+
+```
+{{ item.content }}
+```
+
+{% endfor %}
+{% else %}
+### Reproduction
+
+No reproduction evidence was attached to this finding.
+{% endif %}
+
+### Remediation
+
+{{ finding.remediation or "Not stated." }}
+
+{% if finding.effort %}
+*Estimated remediation effort: {{ finding.effort }}.*
+{% endif %}
+
+{% if finding.adjudication %}
+### Assessor note
+
+{{ finding.adjudication }}
+{% endif %}
+
+---
+
+{% endfor %}
+{% else %}
+No findings were confirmed during this assessment.
+
+This is a statement about what was tested, not a guarantee of security. See
+section 6 for what was covered and section 8 for the limits of this engagement.
+{% endif %}
+
+# 5. Unproven weaknesses
+
+{% if theoretical %}
+The following were identified but could not be confirmed within the rules of
+engagement. They are reported because they are plausible and material, and
+because {{ meta.client }} can verify them internally with access this
+assessment did not have. They are not presented as confirmed findings.
+
+{% for finding in theoretical %}
+## {{ finding.id }} — {{ finding.title }}
+
+| | |
+|---|---|
+| Indicative severity | {{ finding.severity | capitalize if finding.severity else "Unrated" }}{% if finding.cvss_score %} (CVSS {{ finding.cvss_score }}){% endif %} |
+| Affected asset | `{{ finding.asset }}` |
+| Category | {{ finding.domain | capitalize }} |
+
+{{ finding.description or finding.summary }}
+
+**Why it could not be confirmed.** {{ finding.adjudication or "Not recorded." }}
+
+**Suggested verification.** {{ finding.remediation or "Verify internally with privileged access." }}
+
+{% endfor %}
+{% else %}
+No unproven weaknesses were recorded.
+{% endif %}
+
+---
+
+# 6. Coverage
+
+## 6.1 Attack surface identified
+
+{% if assets_by_kind %}
+| Asset type | Count |
+|---|---:|
+{% for kind, count in assets_by_kind %}
+| {{ kind | capitalize }} | {{ count }} |
+{% endfor %}
+{% else %}
+No assets were recorded.
+{% endif %}
+
+{% if services %}
+## 6.2 Services observed
+
+| Host | Port | Service | Product | Version |
+|---|---:|---|---|---|
+{% for service in services %}
+| `{{ service.host }}` | {{ service.port }}/{{ service.protocol }} | {{ service.name or "—" }} | {{ service.product or "—" }} | {{ service.version or "—" }} |
+{% endfor %}
+
+{% endif %}
+
+---
+
+# 7. Remediation roadmap
+
+{% if roadmap %}
+| Priority | Finding | Severity | Asset | Action |
+|---:|---|---|---|---|
+{% for item in roadmap %}
+| {{ loop.index }} | {{ item.id }} | {{ item.severity | capitalize }} | `{{ item.asset }}` | {{ item.action }} |
+{% endfor %}
+{% else %}
+No remediation actions arise from this assessment.
+{% endif %}
+
+---
+
+# 8. Engagement record and limits
+
+## 8.1 Integrity of the record
+
+Every command issued during this engagement was logged before execution, in an
+append-only record where each entry is cryptographically chained to the one
+before it.
+
+| | |
+|---|---|
+| Entries in the record | {{ integrity.entries }} |
+| Chain verification | {{ integrity.verdict }} |
+| Contract fingerprint | `{{ integrity.contract_fingerprint }}` |
+| Commands issued | {{ coverage.commands }} |
+| Commands refused by scope enforcement | {{ integrity.refusals }} |
+
+{% if integrity.refusals %}
+Refusals are expected and are evidence that the scope boundary held: they are
+cases where the assessment attempted something the engagement contract did not
+permit, and was prevented. The full list is available on request.
+{% endif %}
+
+## 8.2 Limits of this assessment
+
+{{ limits }}
+
+## 8.3 Statement
+
+This assessment was performed under written authorization from
+{{ meta.authorized_by.name }} ({{ meta.authorized_by.role }}), reference
+{{ meta.authorized_by.authorization_ref }}, within the window
+{{ window.start }} to {{ window.end }}.
+
+Findings reflect the state of the assessed systems during that window only. A
+system that was secure at the time of testing may not remain so, and a finding
+absent from this report may still exist in an area that was not reachable, not
+in scope, or not reached within the engagement's budget.
