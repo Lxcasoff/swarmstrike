@@ -319,6 +319,9 @@ def report(
     campaign_dir: Path = typer.Argument(..., help="Campaign directory."),
     engagement_path: Path = typer.Option(None, "--engagement", help="Contract, if not alongside."),
     output: Path = typer.Option(None, "--output", "-o", help="Where to write the report."),
+    fmt: str = typer.Option(
+        "md", "--format", "-f", help="Output format: md, html, pdf, or all."
+    ),
     narrate: bool = typer.Option(
         False, "--narrate", help="Have the reporter agent write the executive summary in prose."
     ),
@@ -356,9 +359,37 @@ def report(
         console.print("[dim]writing the executive summary…[/]")
         asyncio.run(builder.narrate(context_brief=build_context(engagement)))
 
-    destination = builder.write(output or campaign_dir / "report")
+    fmt = fmt.lower()
+    if fmt not in {"md", "html", "pdf", "all"}:
+        _fail(f"--format must be md, html, pdf or all — got {fmt!r}")
+
+    base = Path(output) if output else campaign_dir / "report"
+    written: list[Path] = []
+
+    if fmt in {"md", "all"}:
+        written.append(builder.write(base))
+
+    if fmt in {"html", "pdf", "all"}:
+        from .report.html import write_html, write_pdf
+
+        shared = {
+            "engagement": engagement,
+            "kb": kb,
+            "audit": builder.audit,
+            "campaign_id": campaign_id["id"],
+            "executive_summary": builder.executive_summary,
+        }
+        if fmt in {"html", "all"}:
+            written.append(write_html(base.with_suffix(".html"), **shared))
+        if fmt in {"pdf", "all"}:
+            try:
+                written.append(write_pdf(base.with_suffix(".pdf"), **shared))
+            except RuntimeError as exc:
+                err.print(f"[yellow]⚠[/] {exc}")
+
     kb.close()
-    console.print(f"[bold green]✓[/] {destination}")
+    for path in written:
+        console.print(f"[bold green]✓[/] {path}")
 
 
 # ---------------------------------------------------------------------------
@@ -378,6 +409,36 @@ def toolbox(
         "[dim]The image carries the assessment tooling. Agents never execute on the "
         "host — every command runs inside a disposable container built from it.[/]"
     )
+
+
+@app.command("serve")
+def serve(
+    host: str = typer.Option("127.0.0.1", "--host", help="Interface to bind."),
+    port: int = typer.Option(8787, "--port", help="Port to listen on."),
+    reload: bool = typer.Option(False, "--reload", help="Reload on code changes."),
+) -> None:
+    """Serve the web dashboard.
+
+    Binds to localhost by default. A campaign's record describes unremediated
+    vulnerabilities in a client's systems, so exposing this beyond this machine
+    needs a deliberate decision and authentication in front of it.
+    """
+    try:
+        from .web.server import serve as run_server
+    except ImportError as exc:
+        _fail(
+            f"the dashboard needs its extra dependencies: {exc}\n"
+            f"Install them with: pip install 'swarmstrike[web]'"
+        )
+
+    if host not in {"127.0.0.1", "localhost", "::1"}:
+        err.print(
+            f"[yellow]⚠[/] binding to {host}, which may be reachable from other machines. "
+            f"The dashboard has no authentication of its own — put one in front of it."
+        )
+
+    console.print(f"[bold green]✓[/] dashboard on [cyan]http://{host}:{port}[/]")
+    run_server(host=host, port=port, reload=reload)
 
 
 def main() -> int:

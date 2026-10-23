@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import shlex
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -58,6 +59,11 @@ class CampaignContext:
     executor: ToolExecutor
     kb: KnowledgeBase
     killswitch: KillSwitch
+    on_event: Callable[[str, dict[str, Any]], None] | None = None
+
+    def emit(self, kind: str, **payload: Any) -> None:
+        if self.on_event is not None:
+            self.on_event(kind, payload)
 
 
 def build_toolbox_server(ctx: CampaignContext) -> Any:
@@ -265,6 +271,11 @@ def build_knowledge_server(ctx: CampaignContext) -> Any:
         except json.JSONDecodeError:
             attributes = {"note": args.get("attributes", "")}
         is_new = ctx.kb.add_asset(args["kind"], args["value"], args["agent"], attributes)
+        if is_new:
+            ctx.emit(
+                "agent.asset",
+                agent=args["agent"], kind=args["kind"], value=args["value"],
+            )
         return _text(
             f"recorded {args['kind']} {args['value']}"
             if is_new
@@ -321,6 +332,16 @@ def build_knowledge_server(ctx: CampaignContext) -> Any:
             finding.evidence.append(("output", "as submitted", evidence))
 
         finding_id = ctx.kb.add_finding(finding)
+        ctx.emit(
+            "agent.finding",
+            agent=args["agent"],
+            finding_id=finding_id,
+            title=finding.title,
+            domain=finding.domain,
+            asset=finding.asset,
+            severity=finding.severity or "unrated",
+            cvss_score=score,
+        )
         return _text(
             f"{finding_id} recorded as proposed"
             + (f" (CVSS {score} {derived_severity})" if score else "")
@@ -407,6 +428,7 @@ def build_knowledge_server(ctx: CampaignContext) -> Any:
         reason = f"halted by {args['agent']}: {args['reason']}"
         ctx.killswitch.engage(reason)
         ctx.kb.add_note(args["agent"], "halt", args["reason"])
+        ctx.emit("campaign.halted", agent=args["agent"], reason=args["reason"])
         return _text(
             f"campaign halted. {reason}\n"
             f"Findings recorded so far remain valid and will be reported."

@@ -139,3 +139,40 @@ SEVERITY_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3, "none": 4, "u
 
 def severity_rank(severity: str | None) -> int:
     return SEVERITY_ORDER.get((severity or "unrated").lower(), 5)
+
+def subscores(vector: str | None) -> tuple[float, float] | None:
+    """Return (exploitability, impact) from a vector, or None if unusable.
+
+    These are the two halves the base score is built from, and plotting a
+    finding against both says something the single score hides: whether it is
+    severe because it is trivially reachable, or because the consequence is
+    grave. Both come from the vector, so nothing here is estimated.
+    """
+    if not vector:
+        return None
+    try:
+        metrics = parse_vector(vector)
+    except InvalidVector:
+        return None
+
+    scope_changed = metrics["S"] == "C"
+    try:
+        av = METRIC_WEIGHTS["AV"][metrics["AV"]]
+        ac = METRIC_WEIGHTS["AC"][metrics["AC"]]
+        ui = METRIC_WEIGHTS["UI"][metrics["UI"]]
+        pr = PR_WEIGHTS["changed" if scope_changed else "unchanged"][metrics["PR"]]
+        conf = METRIC_WEIGHTS["C"][metrics["C"]]
+        integ = METRIC_WEIGHTS["I"][metrics["I"]]
+        avail = METRIC_WEIGHTS["A"][metrics["A"]]
+    except KeyError:
+        return None
+
+    exploitability = 8.22 * av * ac * pr * ui
+    iss = 1 - ((1 - conf) * (1 - integ) * (1 - avail))
+    if scope_changed:
+        impact = 7.52 * (iss - 0.029) - 3.25 * (iss - 0.02) ** 15
+    else:
+        impact = 6.42 * iss
+
+    return round(exploitability, 2), round(max(impact, 0.0), 2)
+

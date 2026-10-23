@@ -1,0 +1,556 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ meta.mission }} — {{ meta.client }}</title>
+<!--
+  Self-contained: no scripts, no webfonts, no network. A report that needs the
+  internet to render is a report that stops rendering once it is archived.
+  Charts are inline SVG with geometry computed server-side.
+-->
+<style>
+.viz-root, :root {
+  color-scheme: light;
+  --surface-1:#fcfcfb; --page:#f9f9f7;
+  --text-primary:#0b0b0b; --text-secondary:#52514e; --muted:#898781;
+  --grid:#e1e0d9; --axis:#c3c2b7; --hairline:rgba(11,11,11,0.10);
+  --bar:{{ bar_light }};
+  --good:#0ca30c; --warning:#fab219; --serious:#ec835a; --critical:#d03b3b;
+  --sans:system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    color-scheme: dark;
+    --surface-1:#1a1a19; --page:#0d0d0d;
+    --text-primary:#f0efec; --text-secondary:#c3c2b7; --muted:#898781;
+    --grid:#2c2c2a; --axis:#383835; --hairline:rgba(255,255,255,0.10);
+    --bar:{{ bar_dark }};
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --surface-1:#1a1a19; --page:#0d0d0d;
+  --text-primary:#f0efec; --text-secondary:#c3c2b7; --muted:#898781;
+  --grid:#2c2c2a; --axis:#383835; --hairline:rgba(255,255,255,0.10);
+  --bar:{{ bar_dark }};
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0;background:var(--page);color:var(--text-primary);
+  font-family:var(--sans);font-size:15px;line-height:1.65;
+  -webkit-font-smoothing:antialiased;
+}
+.sheet{
+  max-width:880px;margin:0 auto;padding:52px 60px 80px;background:var(--surface-1);
+  border-left:1px solid var(--hairline);border-right:1px solid var(--hairline);
+  min-height:100vh;
+}
+h1,h2,h3,h4{line-height:1.3;letter-spacing:-.012em}
+h1{font-size:2rem;margin:0 0 6px;font-weight:650}
+h2{font-size:1.18rem;margin:52px 0 16px;padding-bottom:9px;border-bottom:1px solid var(--grid);font-weight:620}
+h3{font-size:1rem;margin:30px 0 10px;font-weight:620}
+h4{font-size:.72rem;margin:20px 0 7px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);font-weight:650}
+p{margin:0 0 13px}
+a{color:var(--bar)}
+code,pre{font-family:var(--mono)}
+
+/* ── cover ──────────────────────────────────────────────────────── */
+.cover{padding-bottom:34px;border-bottom:2px solid var(--text-primary)}
+.cover .client{font-size:.78rem;text-transform:uppercase;letter-spacing:.17em;color:var(--muted);margin-bottom:12px}
+.cover .ref{font-family:var(--mono);font-size:.8rem;color:var(--text-secondary);margin-top:10px}
+.facts{margin:26px 0 0;display:grid;grid-template-columns:auto 1fr;gap:7px 22px;font-size:.84rem}
+.facts dt{color:var(--muted)}
+.facts dd{margin:0}
+.notice{
+  margin:26px 0 0;padding:13px 16px;border-left:3px solid var(--warning);
+  background:color-mix(in srgb, var(--warning) 7%, transparent);
+  font-size:.84rem;color:var(--text-secondary);
+}
+
+/* ── hero + charts ──────────────────────────────────────────────── */
+.risk{display:flex;align-items:baseline;gap:16px;margin:22px 0 8px}
+.risk .level{font-size:2.6rem;font-weight:680;letter-spacing:-.03em;line-height:1}
+.risk .level[data-level="Critical"]{color:var(--critical)}
+.risk .level[data-level="High"]{color:var(--serious)}
+.risk .level[data-level="Medium"]{color:var(--warning)}
+.risk .level[data-level="Low"],.risk .level[data-level="Informational"]{color:var(--good)}
+.risk .caption{font-size:.74rem;text-transform:uppercase;letter-spacing:.12em;color:var(--muted)}
+
+figure{margin:22px 0 10px}
+figcaption{font-size:.76rem;color:var(--muted);margin-top:9px;line-height:1.55}
+svg{display:block;max-width:100%;height:auto;overflow:visible}
+.tick{font-size:10.5px;fill:var(--muted);font-family:var(--sans)}
+.row-label{font-size:12.5px;fill:var(--text-secondary);font-family:var(--sans)}
+.value{font-size:12.5px;fill:var(--text-primary);font-family:var(--sans);font-weight:620;
+  font-variant-numeric:tabular-nums}
+.axis-title{font-size:10.5px;fill:var(--muted);text-transform:uppercase;letter-spacing:.1em}
+.pt-label{font-size:10px;fill:var(--text-secondary);font-family:var(--mono)}
+
+/* ── tables ─────────────────────────────────────────────────────── */
+table{width:100%;border-collapse:collapse;font-size:.85rem;margin:16px 0}
+th{text-align:left;padding:8px 11px;border-bottom:1px solid var(--axis);
+  font-size:.7rem;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:650}
+td{padding:8px 11px;border-bottom:1px solid var(--grid);vertical-align:top}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;font-family:var(--mono)}
+tfoot td{font-weight:650;border-bottom:none;border-top:1px solid var(--axis)}
+
+/* ── findings ───────────────────────────────────────────────────── */
+.finding{margin:40px 0 0;padding-top:4px;break-inside:avoid-page}
+.finding .head{display:flex;align-items:flex-start;gap:13px;flex-wrap:wrap}
+.finding .head h3{margin:0;flex:1;min-width:260px}
+.badge{
+  display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;
+  font-size:.68rem;font-weight:680;text-transform:uppercase;letter-spacing:.05em;
+  border:1px solid var(--hairline);white-space:nowrap;
+}
+/* The dot is the icon half of the icon+label pairing: the word is always
+   present, so the colour never carries the meaning on its own. */
+.badge .dot{width:7px;height:7px;border-radius:50%;background:currentColor;flex:none}
+.badge.critical{color:var(--critical)}
+.badge.high{color:var(--serious)}
+.badge.medium{color:var(--warning)}
+.badge.low{color:var(--bar)}
+.badge.none,.badge.unrated{color:var(--muted)}
+.badge.score{color:var(--text-secondary);font-family:var(--mono);text-transform:none;letter-spacing:0}
+.refs{margin:12px 0 0;display:grid;grid-template-columns:auto 1fr;gap:5px 20px;font-size:.78rem}
+.refs dt{color:var(--muted)}
+.refs dd{margin:0;font-family:var(--mono);font-size:.75rem;word-break:break-word}
+pre{
+  margin:9px 0;padding:13px 15px;border-radius:8px;background:var(--page);
+  border:1px solid var(--grid);overflow-x:auto;font-size:.76rem;line-height:1.6;
+  color:var(--text-secondary);white-space:pre-wrap;word-break:break-word;
+}
+.note{
+  margin:14px 0 0;padding:11px 15px;border-left:3px solid var(--bar);
+  background:color-mix(in srgb, var(--bar) 6%, transparent);font-size:.82rem;
+  color:var(--text-secondary);
+}
+.empty{color:var(--muted);font-style:italic}
+hr.sep{border:none;border-top:1px solid var(--grid);margin:36px 0 0}
+
+/* ── print ──────────────────────────────────────────────────────── */
+@media print{
+  :root{color-scheme:light !important;
+    --surface-1:#fff; --page:#fff; --text-primary:#000; --text-secondary:#333;
+    --muted:#666; --grid:#ddd; --axis:#999; --hairline:#ccc; --bar:#1c5cab}
+  body{background:#fff;font-size:10.5pt}
+  .sheet{max-width:none;padding:0;border:none;min-height:0}
+  @page{size:A4;margin:18mm 16mm}
+  h2{break-after:avoid-page}
+  h3{break-after:avoid-page}
+  .finding,figure,table{break-inside:avoid-page}
+  pre{white-space:pre-wrap;border-color:#ccc}
+  a{color:#000;text-decoration:none}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body class="viz-root">
+<div class="sheet">
+
+<!-- ═══ cover ═══════════════════════════════════════════════════ -->
+<header class="cover">
+  <div class="client">{{ meta.client }}</div>
+  <h1>{{ meta.mission }}</h1>
+  <div class="ref">{{ meta.reference or meta.id }} · issued {{ generated_on }}</div>
+
+  <dl class="facts">
+    <dt>Engagement</dt><dd>{{ meta.id }}</dd>
+    <dt>Assessment window</dt><dd>{{ window.start }} → {{ window.end }}</dd>
+    <dt>Authorized by</dt><dd>{{ meta.authorized_by.name }}, {{ meta.authorized_by.role }}</dd>
+    <dt>Authorization on file</dt><dd>{{ meta.authorized_by.authorization_ref }}</dd>
+    <dt>Contract fingerprint</dt><dd><code>{{ integrity.contract_fingerprint[:32] }}…</code></dd>
+    <dt>Classification</dt><dd>Confidential — {{ meta.client }} and authorized recipients</dd>
+  </dl>
+
+  <p class="notice">
+    This report documents an authorized security assessment. It describes
+    weaknesses that may not yet be remediated, and should be handled and
+    distributed accordingly.
+  </p>
+</header>
+
+<!-- ═══ 1. executive summary ════════════════════════════════════ -->
+<h2>1. Executive summary</h2>
+
+<div class="risk">
+  <span class="level" data-level="{{ risk_level }}">{{ risk_level }}</span>
+  <span class="caption">overall risk</span>
+</div>
+<p>{{ risk_statement }}</p>
+<p>{{ executive_summary }}</p>
+
+<!-- severity distribution: one series, rows already named by their label,
+     so the bars carry magnitude and the labels carry identity -->
+<figure>
+  <h4>Confirmed findings by severity</h4>
+  <svg width="{{ charts.bars_width }}" height="{{ charts.bars_height }}"
+       viewBox="0 0 {{ charts.bars_width }} {{ charts.bars_height }}"
+       role="img" aria-label="Confirmed findings by severity. {% for bar in charts.bars %}{{ bar.label }}: {{ bar.count }}. {% endfor %}">
+    <line x1="{{ bar_geometry.label_w }}" y1="0"
+          x2="{{ bar_geometry.label_w }}" y2="{{ charts.bars_height }}"
+          stroke="var(--axis)" stroke-width="1"/>
+    {% for bar in charts.bars %}
+    <text class="row-label" x="{{ bar.label_x }}"
+          y="{{ bar.bar_y + bar_geometry.bar_h / 2 }}"
+          text-anchor="end" dominant-baseline="central">{{ bar.label }}</text>
+    {% if bar.width > 0 %}
+    <rect x="{{ bar_geometry.label_w }}" y="{{ bar.bar_y }}"
+          width="{{ bar.width }}" height="{{ bar_geometry.bar_h }}"
+          rx="4" ry="4" fill="var(--bar)"/>
+    {% endif %}
+    <text class="value" x="{{ bar.value_x }}"
+          y="{{ bar.bar_y + bar_geometry.bar_h / 2 }}"
+          dominant-baseline="central">{{ bar.count }}</text>
+    {% endfor %}
+  </svg>
+  <figcaption>
+    {{ counts.total }} finding(s) confirmed after review.
+    {% if counts.theoretical %}
+    A further {{ counts.theoretical }} unproven weakness(es) are reported in section 5 and
+    are not counted here.
+    {% endif %}
+    Section 1.2 gives the same figures as a table.
+  </figcaption>
+</figure>
+
+<h3>1.2 Findings at a glance</h3>
+<table>
+  <thead><tr><th>Severity</th><th class="num">Confirmed</th></tr></thead>
+  <tbody>
+    {% for bar in charts.bars %}
+    <tr>
+      <td><span class="badge {{ bar.key }}"><span class="dot"></span>{{ bar.label }}</span></td>
+      <td class="num">{{ bar.count }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+  <tfoot><tr><td>Total confirmed</td><td class="num">{{ counts.total }}</td></tr></tfoot>
+</table>
+
+{% if charts.has_matrix %}
+<h3>1.3 How the confirmed findings are distributed</h3>
+<figure>
+  <svg width="{{ plot.w }}" height="{{ plot.h }}" viewBox="0 0 {{ plot.w }} {{ plot.h }}"
+       role="img" aria-label="Confirmed findings plotted by CVSS exploitability against CVSS impact. {% for p in charts.matrix %}{{ p.id }}: exploitability {{ p.exploitability }}, impact {{ p.impact }}. {% endfor %}">
+    {% for tick in charts.matrix_ticks.y %}
+    <line x1="{{ plot.pad_l }}" y1="{{ tick.y }}" x2="{{ plot.w - plot.pad_r }}" y2="{{ tick.y }}"
+          stroke="var(--grid)" stroke-width="1"/>
+    <text class="tick" x="{{ plot.pad_l - 9 }}" y="{{ tick.y }}"
+          text-anchor="end" dominant-baseline="central">{{ tick.value }}</text>
+    {% endfor %}
+    {% for tick in charts.matrix_ticks.x %}
+    <text class="tick" x="{{ tick.x }}" y="{{ plot.h - plot.pad_b + 16 }}"
+          text-anchor="middle">{{ tick.value }}</text>
+    {% endfor %}
+    <line x1="{{ plot.pad_l }}" y1="{{ plot.h - plot.pad_b }}"
+          x2="{{ plot.w - plot.pad_r }}" y2="{{ plot.h - plot.pad_b }}"
+          stroke="var(--axis)" stroke-width="1"/>
+
+    {% for p in charts.matrix %}
+    <circle cx="{{ p.cx }}" cy="{{ p.cy }}" r="6" fill="{{ status_colour[p.severity] }}"
+            stroke="var(--surface-1)" stroke-width="2"/>
+    <text class="pt-label" x="{{ p.cx + 10 }}" y="{{ p.cy }}"
+          dominant-baseline="central">{{ p.id }}</text>
+    {% endfor %}
+
+    <text class="axis-title" x="{{ plot.pad_l }}" y="{{ plot.h - 6 }}">Exploitability →</text>
+    <text class="axis-title" x="10" y="{{ plot.pad_t + 4 }}"
+          transform="rotate(-90 10 {{ plot.pad_t + 4 }})">Impact →</text>
+  </svg>
+  <figcaption>
+    Each confirmed finding plotted by the two halves its CVSS v3.1 score is built
+    from: how easily it can be reached and exercised, against how much damage it
+    does. Both values come from the finding's vector. A point to the upper right
+    is both easy to exploit and serious. This is deliberately not a
+    likelihood-and-impact matrix — the assessment produced no likelihood data,
+    and that axis would be a guess presented as a measurement.
+  </figcaption>
+</figure>
+{% endif %}
+
+<h3>1.4 Priorities</h3>
+{% if priorities %}
+<p>The following should be addressed first, in this order:</p>
+<ol>
+  {% for item in priorities %}
+  <li style="margin-bottom:9px">
+    <strong>{{ item.title }}</strong>
+    <span class="badge {{ item.severity }}"><span class="dot"></span>{{ item.severity }}</span>
+    {% if item.cvss_score %}<span class="badge score">CVSS {{ item.cvss_score }}</span>{% endif %}
+    <br><code style="font-size:.78rem;color:var(--muted)">{{ item.asset }}</code>
+    <br>{{ item.one_line }}
+  </li>
+  {% endfor %}
+</ol>
+{% else %}
+<p class="empty">No confirmed findings require prioritised remediation.</p>
+{% endif %}
+
+<!-- ═══ 2. scope ════════════════════════════════════════════════ -->
+<h2>2. Scope and authorization</h2>
+
+<h3>2.1 Authorized scope</h3>
+<table>
+  <tbody>
+    {% if scope.domains %}
+    <tr><td>Domains</td><td>
+      {% for d in scope.domains %}<code>{{ d.name }}</code>{{ " and subdomains" if d.include_subdomains else "" }}{{ ", " if not loop.last else "" }}{% endfor %}
+    </td></tr>
+    {% endif %}
+    {% if scope.cidrs %}
+    <tr><td>Address ranges</td><td>{% for c in scope.cidrs %}<code>{{ c }}</code>{{ ", " if not loop.last else "" }}{% endfor %}</td></tr>
+    {% endif %}
+    {% if scope.ips %}
+    <tr><td>Addresses</td><td>{% for ip in scope.ips %}<code>{{ ip }}</code>{{ ", " if not loop.last else "" }}{% endfor %}</td></tr>
+    {% endif %}
+    {% if scope.urls %}
+    <tr><td>Applications</td><td>{% for u in scope.urls %}<code>{{ u }}</code>{{ ", " if not loop.last else "" }}{% endfor %}</td></tr>
+    {% endif %}
+  </tbody>
+</table>
+
+<h3>2.2 Exclusions</h3>
+{% if exclusions.any %}
+<p>Excluded at {{ meta.client }}'s instruction and not assessed:</p>
+<ul>{% for item in exclusions.entries %}<li>{{ item }}</li>{% endfor %}</ul>
+{% else %}
+<p class="empty">No exclusions were defined for this engagement.</p>
+{% endif %}
+
+<h3>2.3 Rules of engagement</h3>
+<table>
+  <thead><tr><th>Constraint</th><th>Setting</th></tr></thead>
+  <tbody>
+    <tr><td>Testing intensity</td><td>{{ roe.intensity }}</td></tr>
+    <tr><td>Maximum request rate</td><td>{{ roe.max_requests_per_second }} per second</td></tr>
+    <tr><td>Proof-of-concept exploitation</td>
+        <td>{{ "Authorized, stopping at proof" if roe.exploitation.allowed else "Not authorized" }}</td></tr>
+    <tr><td>Authentication testing</td>
+        <td>{{ "Authorized against named test accounts only" if roe.credential_testing.allowed else "Not authorized" }}</td></tr>
+    <tr><td>Denial of service</td><td>Forbidden</td></tr>
+    <tr><td>Data modification</td><td>Forbidden</td></tr>
+    <tr><td>Persistence</td><td>Forbidden</td></tr>
+    <tr><td>Social engineering</td><td>Forbidden</td></tr>
+  </tbody>
+</table>
+<p style="font-size:.82rem;color:var(--text-secondary)">
+  Constraints marked forbidden were enforced technically rather than by
+  convention: matching commands were refused before execution. Section 6 records
+  how many refusals occurred.
+</p>
+
+<!-- ═══ 3. methodology ══════════════════════════════════════════ -->
+<h2>3. Methodology</h2>
+<p>
+  Testing followed the Penetration Testing Execution Standard (PTES) phases, with
+  web application testing aligned to the OWASP Web Security Testing Guide and
+  severities scored using CVSS v3.1.
+</p>
+<table>
+  <thead><tr><th>Phase</th><th>Activity</th><th>Coverage</th></tr></thead>
+  <tbody>
+    <tr><td>Intelligence gathering</td><td>Attack surface enumeration, DNS and certificate analysis, fingerprinting</td><td class="num">{{ coverage.assets }} assets</td></tr>
+    <tr><td>Vulnerability analysis</td><td>Service identification, templated checks, configuration review</td><td class="num">{{ coverage.commands }} invocations</td></tr>
+    <tr><td>Exploitation</td><td>Proof-of-concept confirmation, stopping at proof</td><td class="num">{{ counts.total }} confirmed</td></tr>
+    <tr><td>Reporting</td><td>Peer review, adversarial challenge and adjudication</td><td class="num">{{ coverage.rulings }} adjudicated</td></tr>
+  </tbody>
+</table>
+
+<h3>3.1 How findings were validated</h3>
+<p>
+  Every finding here was challenged before inclusion: reviewed by a second
+  assessor from a different discipline, then examined by a reviewer whose
+  specific task was to establish it was a false positive, an overstatement or a
+  duplicate. An adjudicator then ruled on the evidence and set the severity
+  recorded in this report.
+</p>
+<p>
+  Findings that did not survive that process are not presented as findings. They
+  remain in the engagement record with the reasoning that rejected them, available
+  to {{ meta.client }} on request.{% if coverage.rejected %}
+  {{ coverage.rejected }} proposed finding(s) were rejected this way.{% endif %}
+  Weaknesses that were plausible but unprovable within the rules of engagement
+  appear in section 5, labelled as unproven.
+</p>
+
+<!-- ═══ 4. findings ═════════════════════════════════════════════ -->
+<h2>4. Confirmed findings</h2>
+{% if findings %}
+{% for f in findings %}
+<article class="finding">
+  <div class="head">
+    <h3>{{ f.id }} — {{ f.title }}</h3>
+    <span class="badge {{ f.severity or 'unrated' }}"><span class="dot"></span>{{ f.severity or "unrated" }}</span>
+    {% if f.cvss_score %}<span class="badge score">CVSS {{ f.cvss_score }}</span>{% endif %}
+  </div>
+
+  <dl class="refs">
+    <dt>Affected asset</dt><dd>{{ f.asset }}</dd>
+    <dt>Category</dt><dd>{{ f.domain }}</dd>
+    {% if f.cvss_vector %}<dt>CVSS v3.1 vector</dt><dd>{{ f.cvss_vector }}</dd>{% endif %}
+    {% if f.cwe %}<dt>CWE</dt><dd>{{ f.cwe }}</dd>{% endif %}
+    {% if f.owasp_wstg %}<dt>OWASP WSTG</dt><dd>{{ f.owasp_wstg }}</dd>{% endif %}
+    {% if f.mitre_attack %}<dt>MITRE ATT&amp;CK</dt><dd>{{ f.mitre_attack }}</dd>{% endif %}
+    <dt>Confidence</dt><dd>{{ (f.confidence * 100) | round | int }}%</dd>
+  </dl>
+
+  <h4>Description</h4>
+  <p>{{ f.description or f.summary }}</p>
+
+  <h4>Impact</h4>
+  <p>{{ f.impact or "Not stated." }}</p>
+
+  <h4>Reproduction</h4>
+  {% if f.evidence %}
+  {% for item in f.evidence %}
+  {% if item.label %}<p style="font-size:.78rem;color:var(--muted);margin:10px 0 0">{{ item.label }}</p>{% endif %}
+  <pre>{{ item.content }}</pre>
+  {% endfor %}
+  {% else %}
+  <p class="empty">No reproduction evidence was attached to this finding.</p>
+  {% endif %}
+
+  <h4>Remediation</h4>
+  <p>{{ f.remediation or "Not stated." }}</p>
+  {% if f.effort %}
+  <p style="font-size:.8rem;color:var(--muted)">Estimated remediation effort: {{ f.effort }}.</p>
+  {% endif %}
+
+  {% if f.adjudication %}
+  <div class="note"><strong>Assessor note.</strong> {{ f.adjudication }}</div>
+  {% endif %}
+</article>
+<hr class="sep">
+{% endfor %}
+{% else %}
+<p class="empty">No findings were confirmed during this assessment.</p>
+<p>
+  This is a statement about what was tested, not a guarantee of security. See
+  section 6 for coverage and the limits of this engagement.
+</p>
+{% endif %}
+
+<!-- ═══ 5. unproven ═════════════════════════════════════════════ -->
+<h2>5. Unproven weaknesses</h2>
+{% if theoretical %}
+<p>
+  Identified but not confirmed within the rules of engagement. They are reported
+  because they are plausible and material, and because {{ meta.client }} can
+  verify them internally with access this assessment did not have. They are not
+  presented as confirmed findings.
+</p>
+{% for f in theoretical %}
+<article class="finding">
+  <div class="head">
+    <h3>{{ f.id }} — {{ f.title }}</h3>
+    <span class="badge {{ f.severity or 'unrated' }}"><span class="dot"></span>indicative: {{ f.severity or "unrated" }}</span>
+  </div>
+  <dl class="refs">
+    <dt>Affected asset</dt><dd>{{ f.asset }}</dd>
+    <dt>Category</dt><dd>{{ f.domain }}</dd>
+  </dl>
+  <p>{{ f.description or f.summary }}</p>
+  <h4>Why it could not be confirmed</h4>
+  <p>{{ f.adjudication or "Not recorded." }}</p>
+  <h4>Suggested verification</h4>
+  <p>{{ f.remediation or "Verify internally with privileged access." }}</p>
+</article>
+{% endfor %}
+{% else %}
+<p class="empty">No unproven weaknesses were recorded.</p>
+{% endif %}
+
+<!-- ═══ 6. coverage & record ════════════════════════════════════ -->
+<h2>6. Coverage and engagement record</h2>
+
+<h3>6.1 Attack surface identified</h3>
+{% if assets_by_kind %}
+<table>
+  <thead><tr><th>Asset type</th><th class="num">Count</th></tr></thead>
+  <tbody>
+    {% for kind, count in assets_by_kind %}
+    <tr><td>{{ kind }}</td><td class="num">{{ count }}</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="empty">No assets were recorded.</p>
+{% endif %}
+
+{% if services %}
+<h3>6.2 Services observed</h3>
+<table>
+  <thead><tr><th>Host</th><th class="num">Port</th><th>Service</th><th>Product</th><th>Version</th></tr></thead>
+  <tbody>
+    {% for s in services %}
+    <tr><td><code>{{ s.host }}</code></td><td class="num">{{ s.port }}/{{ s.protocol }}</td>
+        <td>{{ s.name or "—" }}</td><td>{{ s.product or "—" }}</td><td>{{ s.version or "—" }}</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+<h3>6.3 Integrity of the record</h3>
+<p>
+  Every command issued during this engagement was logged before execution, in an
+  append-only record where each entry is cryptographically chained to the one
+  before it.
+</p>
+<table>
+  <tbody>
+    <tr><td>Entries in the record</td><td class="num">{{ integrity.entries }}</td></tr>
+    <tr><td>Chain verification</td><td>{{ integrity.verdict }}</td></tr>
+    <tr><td>Commands issued</td><td class="num">{{ coverage.commands }}</td></tr>
+    <tr><td>Commands refused by scope enforcement</td><td class="num">{{ integrity.refusals }}</td></tr>
+  </tbody>
+</table>
+{% if integrity.refusals %}
+<p style="font-size:.82rem;color:var(--text-secondary)">
+  Refusals are expected, and are evidence that the scope boundary held: each one
+  is a case where the assessment attempted something the contract did not permit
+  and was prevented. The full list is available on request.
+</p>
+{% endif %}
+
+<h3>6.4 Remediation roadmap</h3>
+{% if roadmap %}
+<table>
+  <thead><tr><th class="num">#</th><th>Finding</th><th>Severity</th><th>Asset</th><th>Action</th></tr></thead>
+  <tbody>
+    {% for item in roadmap %}
+    <tr><td class="num">{{ loop.index }}</td><td><code>{{ item.id }}</code></td>
+        <td><span class="badge {{ item.severity }}"><span class="dot"></span>{{ item.severity }}</span></td>
+        <td><code>{{ item.asset }}</code></td><td>{{ item.action }}</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="empty">No remediation actions arise from this assessment.</p>
+{% endif %}
+
+<h3>6.5 Limits of this assessment</h3>
+{% for paragraph in limits.split("\n\n") %}
+<p>{{ paragraph }}</p>
+{% endfor %}
+
+<h3>6.6 Statement</h3>
+<p>
+  This assessment was performed under written authorization from
+  {{ meta.authorized_by.name }} ({{ meta.authorized_by.role }}), reference
+  {{ meta.authorized_by.authorization_ref }}, within the window
+  {{ window.start }} to {{ window.end }}.
+</p>
+<p>
+  Findings reflect the state of the assessed systems during that window only. A
+  system that was secure at the time of testing may not remain so, and a finding
+  absent from this report may still exist in an area that was not reachable, not
+  in scope, or not reached within the engagement's budget.
+</p>
+
+</div>
+</body>
+</html>

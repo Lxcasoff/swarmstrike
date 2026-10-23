@@ -225,6 +225,7 @@ class Campaign:
             policy=ContainerPolicy(image=config.toolbox_image),
             max_concurrent=self.engagement.rules_of_engagement.max_concurrent_tools,
             min_interval_s=_interval_for(self.engagement.rules_of_engagement.intensity),
+            on_event=self._emit,
         )
 
         self.context = build_context(self.engagement)
@@ -244,6 +245,7 @@ class Campaign:
             executor=self.executor,
             kb=self.kb,
             killswitch=self.killswitch,
+            on_event=self._emit,
         )
         self._servers = {
             "toolbox": build_toolbox_server(ctx),
@@ -399,6 +401,7 @@ class Campaign:
             allowed_tools=ANALYSIS_TOOLS,
             context=self.context,
             specialist_prompts=specialist_prompts,
+            on_event=self._emit,
         )
 
         outcomes: list[Outcome] = []

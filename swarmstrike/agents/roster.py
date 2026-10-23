@@ -481,3 +481,29 @@ def build_agents(
 SPECIALIST_NAMES = tuple(_SPECIALISTS)
 CHALLENGE_NAMES = ("skeptic", "arbiter", "reporter")
 ALL_EFFORTS = tuple(DEFAULT_EFFORT)
+
+# ---------------------------------------------------------------------------
+#  Presentation. One source of truth for how an agent appears in the UIs.
+# ---------------------------------------------------------------------------
+AGENT_FACES: dict[str, dict[str, str]] = {
+    "lead":     {"emoji": "\U0001F3A9", "label": "Lead",      "hue": "265", "role": "orchestrator"},
+    "recon":    {"emoji": "\U0001F6F0",  "label": "Recon",     "hue": "199", "role": "specialist"},
+    "network":  {"emoji": "\U0001F50C", "label": "Network",   "hue": "217", "role": "specialist"},
+    "web":      {"emoji": "\U0001F578",  "label": "Web",       "hue": "25",  "role": "specialist"},
+    "api":      {"emoji": "\U0001F517", "label": "API",       "hue": "45",  "role": "specialist"},
+    "cloud":    {"emoji": "\u2601",      "label": "Cloud",     "hue": "189", "role": "specialist"},
+    "ad":       {"emoji": "\U0001F3DB",  "label": "Directory", "hue": "280", "role": "specialist"},
+    "code":     {"emoji": "\U0001F4DC", "label": "Code",      "hue": "150", "role": "specialist"},
+    "crypto":   {"emoji": "\U0001F510", "label": "Crypto",    "hue": "95",  "role": "specialist"},
+    "skeptic":  {"emoji": "\U0001F9D0", "label": "Skeptic",   "hue": "0",   "role": "challenge"},
+    "arbiter":  {"emoji": "\u2696",      "label": "Arbiter",   "hue": "48",  "role": "challenge"},
+    "reporter": {"emoji": "\U0001F4DD", "label": "Reporter",  "hue": "210", "role": "challenge"},
+}
+
+
+def face(agent: str) -> dict[str, str]:
+    """Presentation for an agent name, tolerating prefixed names like 'peer:web'."""
+    name = agent.split(":", 1)[-1] if ":" in agent else agent
+    return AGENT_FACES.get(name, {
+        "emoji": "\U0001F916", "label": agent.title(), "hue": "220", "role": "specialist",
+    })

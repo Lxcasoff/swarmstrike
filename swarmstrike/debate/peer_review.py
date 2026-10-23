@@ -13,6 +13,7 @@ Each role is a single constrained call that must return a structured verdict.
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -120,6 +121,7 @@ class DebateEngine:
         model_overrides: dict[str, str] | None = None,
         effort_overrides: dict[str, str] | None = None,
         specialist_prompts: dict[str, str] | None = None,
+        on_event: Callable[[str, dict[str, Any]], None] | None = None,
     ) -> None:
         self.kb = kb
         self.audit = audit
@@ -130,6 +132,11 @@ class DebateEngine:
         self.model_overrides = model_overrides or {}
         self.effort_overrides = effort_overrides or {}
         self.specialist_prompts = specialist_prompts or {}
+        self.on_event = on_event
+
+    def _emit(self, kind: str, **payload: Any) -> None:
+        if self.on_event is not None:
+            self.on_event(kind, payload)
 
     # ------------------------------------------------------------------
     async def _ask(
@@ -153,11 +160,19 @@ class DebateEngine:
             max_turns=12,
         )
 
+        self._emit("agent.review.start", agent=label)
+
         payload: dict[str, Any] | None = None
         async for message in query(prompt=prompt, options=options):
             if isinstance(message, ResultMessage):
                 self.budget.record_result(f"{label}:{message.session_id}", message)
                 payload = _read_structured(message)
+
+        self._emit(
+            "agent.review.end",
+            agent=label,
+            stance=(payload or {}).get("stance") or (payload or {}).get("verdict") or "no reply",
+        )
         return payload
 
     # ------------------------------------------------------------------

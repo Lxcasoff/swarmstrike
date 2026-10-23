@@ -24,6 +24,13 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+web = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+]
+pdf = [
+    "weasyprint>=62.0",
+]
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.23",

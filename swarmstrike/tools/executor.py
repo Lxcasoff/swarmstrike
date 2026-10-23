@@ -15,8 +15,10 @@ import hashlib
 import json
 import shlex
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 from ..audit import AuditLog
 from ..killswitch import KillSwitch
@@ -107,6 +109,9 @@ class ToolExecutor:
     policy: ContainerPolicy = field(default_factory=ContainerPolicy)
     max_concurrent: int = 4
     min_interval_s: float = 0.0
+    # Per-agent activity, for the live view. The executor is the only place
+    # that knows which agent is doing what to whom, and when it stops.
+    on_event: Callable[[str, dict[str, Any]], None] | None = None
 
     _semaphore: asyncio.Semaphore = field(init=False)
     _last_launch: float = field(default=0.0, init=False)
@@ -118,6 +123,10 @@ class ToolExecutor:
         self._launch_lock = asyncio.Lock()
         self.output_dir = self.workspace / "output"
         self.output_dir.mkdir(parents=True, exist_ok=True)
+
+    def _emit(self, kind: str, **payload: Any) -> None:
+        if self.on_event is not None:
+            self.on_event(kind, payload)
 
     # ------------------------------------------------------------------
     def authorize(self, argv: list[str]) -> Decision:
@@ -141,6 +150,13 @@ class ToolExecutor:
             self.kb.log_command(
                 agent=agent, argv=argv, decision="refused",
                 reason=f"[{decision.rule}] {decision.reason}",
+            )
+            self._emit(
+                "agent.refused",
+                agent=agent,
+                tool=Path(argv[0]).name,
+                rule=decision.rule,
+                reason=decision.reason,
             )
             raise ExecutionRefused(f"[{decision.rule}] {decision.reason}")
 
@@ -169,6 +185,17 @@ class ToolExecutor:
     ) -> ToolResult:
         self._sequence += 1
         full = self.policy.docker_argv(self.workspace, needs_raw_socket=needs_raw_socket) + argv
+        tool_name = Path(argv[0]).name
+        targets = self.guard.extract_targets(argv)
+
+        self._emit(
+            "agent.tool.start",
+            agent=agent,
+            tool=tool_name,
+            targets=targets,
+            sequence=self._sequence,
+            command=shlex.join(argv)[:300],
+        )
 
         started = time.monotonic()
         process = await asyncio.create_subprocess_exec(
@@ -192,7 +219,6 @@ class ToolExecutor:
 
         # Keep the full output on disk as the evidence of record, and give the
         # agent a bounded slice of it.
-        tool_name = Path(argv[0]).name
         output_path = self.output_dir / f"{self._sequence:04d}-{agent}-{tool_name}.txt"
         output_path.write_text(
             f"$ {shlex.join(argv)}\nexit={exit_code}\n\n{stdout}\n--- stderr ---\n{stderr}",
@@ -215,6 +241,17 @@ class ToolExecutor:
         self.kb.log_command(
             agent=agent, argv=argv, decision="allowed", reason=decision.reason,
             exit_code=exit_code, duration_ms=duration_ms, output_path=str(output_path),
+        )
+
+        self._emit(
+            "agent.tool.end",
+            agent=agent,
+            tool=tool_name,
+            targets=targets,
+            sequence=self._sequence,
+            exit_code=exit_code,
+            duration_ms=duration_ms,
+            output_bytes=len(raw_out or b""),
         )
 
         return ToolResult(

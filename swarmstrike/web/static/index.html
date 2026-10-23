@@ -1,0 +1,1105 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>swarmstrike</title>
+<!--
+  No external resources. A penetration test can run on an isolated network,
+  and a dashboard that needs a CDN to render is a dashboard that fails there.
+-->
+<style>
+:root{
+  --bg:#070a12; --bg-2:#0c1020; --panel:#111729cc; --panel-solid:#111729;
+  --line:#1e2740; --line-soft:#18203450;
+  --ink:#e8edfb; --ink-dim:#93a0c0; --ink-faint:#5e6c8c;
+  --accent:#5b8cff; --good:#34d399; --warn:#fbbf24; --bad:#f87171; --crit:#fb3b53;
+  --radius:16px;
+  --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:system-ui,-apple-system,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0; font-family:var(--sans); color:var(--ink);
+  background:
+    radial-gradient(1200px 700px at 12% -10%, #1b2a5518, transparent 60%),
+    radial-gradient(900px 600px at 95% 0%, #4b207818, transparent 55%),
+    linear-gradient(#070a12,#05070d);
+  background-attachment:fixed;
+}
+body::before{
+  content:""; position:fixed; inset:0; pointer-events:none; z-index:0;
+  background-image:linear-gradient(#ffffff05 1px,transparent 1px),linear-gradient(90deg,#ffffff05 1px,transparent 1px);
+  background-size:52px 52px; mask-image:radial-gradient(ellipse at 50% 0%,#000 25%,transparent 78%);
+}
+#app{position:relative;z-index:1;max-width:1560px;margin:0 auto;padding:22px 24px 64px}
+
+/* ─── header ───────────────────────────────────────────────────────── */
+header.top{display:flex;align-items:center;gap:20px;flex-wrap:wrap;margin-bottom:22px}
+.brand{display:flex;align-items:center;gap:12px}
+.brand .mark{
+  width:40px;height:40px;border-radius:12px;display:grid;place-items:center;font-size:20px;
+  background:linear-gradient(145deg,#2d4fd0,#7b2ff7);
+  box-shadow:0 0 0 1px #ffffff1a,0 10px 24px -8px #3b4ff055;
+  animation:markPulse 5s ease-in-out infinite;
+}
+@keyframes markPulse{0%,100%{box-shadow:0 0 0 1px #ffffff1a,0 10px 24px -8px #3b4ff055}
+  50%{box-shadow:0 0 0 1px #ffffff2e,0 10px 34px -6px #6a4ff0aa}}
+.brand h1{margin:0;font-size:1.22rem;letter-spacing:-.02em;font-weight:650}
+.brand p{margin:1px 0 0;font-size:.74rem;color:var(--ink-faint);letter-spacing:.14em;text-transform:uppercase}
+.spacer{flex:1}
+
+.meta{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.chip{
+  font-size:.76rem;padding:7px 12px;border-radius:999px;border:1px solid var(--line);
+  background:var(--panel);backdrop-filter:blur(8px);color:var(--ink-dim);white-space:nowrap;
+}
+.chip b{color:var(--ink);font-weight:600}
+.chip.live{border-color:#34d39950;color:#9ff0cf}
+.chip.live::before{
+  content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--good);
+  margin-right:7px;vertical-align:1px;animation:blink 1.4s ease-in-out infinite;
+}
+.chip.halted{border-color:#f8717155;color:#ffc2c2}
+@keyframes blink{0%,100%{opacity:1;box-shadow:0 0 0 0 #34d39966}50%{opacity:.45;box-shadow:0 0 0 5px #34d39900}}
+
+button{font-family:inherit;font-size:.82rem;cursor:pointer;border-radius:10px;transition:.16s}
+.btn{padding:9px 16px;border:1px solid var(--line);background:#141c33;color:var(--ink);font-weight:550}
+.btn:hover{background:#1a2440;border-color:#2b3860}
+.btn-primary{border:none;background:linear-gradient(145deg,#3a62e8,#6d35e0);color:#fff;box-shadow:0 8px 20px -8px #4a52f0aa}
+.btn-primary:hover{filter:brightness(1.1)}
+.btn-primary:disabled{opacity:.45;cursor:not-allowed;filter:none}
+.btn-danger{border:1px solid #f8717148;background:#2a1220;color:#ffb4b4}
+.btn-danger:hover{background:#3a1526;border-color:#f8717180}
+
+/* ─── gauges ───────────────────────────────────────────────────────── */
+.gauges{display:flex;gap:14px;flex-wrap:wrap}
+.gauge{min-width:132px}
+.gauge .lbl{display:flex;justify-content:space-between;font-size:.68rem;color:var(--ink-faint);
+  text-transform:uppercase;letter-spacing:.1em;margin-bottom:5px}
+.gauge .lbl span:last-child{color:var(--ink-dim);letter-spacing:0;text-transform:none;font-variant-numeric:tabular-nums}
+.bar{height:5px;border-radius:999px;background:#1a2238;overflow:hidden}
+.bar i{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,#4f7cf7,#8b5cf6);
+  transition:width .6s cubic-bezier(.22,1,.36,1)}
+.bar.hot i{background:linear-gradient(90deg,#fbbf24,#fb3b53)}
+
+/* ─── layout ───────────────────────────────────────────────────────── */
+.grid{display:grid;grid-template-columns:minmax(0,1.68fr) minmax(0,1fr);gap:18px;align-items:start}
+.card{
+  border:1px solid var(--line);border-radius:var(--radius);background:var(--panel);
+  backdrop-filter:blur(10px);overflow:hidden;
+}
+.card>h2{
+  margin:0;padding:13px 17px;font-size:.76rem;font-weight:600;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--ink-dim);border-bottom:1px solid var(--line-soft);
+  display:flex;align-items:center;gap:9px;
+}
+.card>h2 .count{
+  margin-left:auto;font-size:.7rem;letter-spacing:0;text-transform:none;color:var(--ink-faint);
+  font-variant-numeric:tabular-nums;
+}
+
+/* ─── the war room: 3D agent avatars ──────────────────────────────── */
+.room{padding:26px 18px 20px;display:grid;gap:30px 10px;
+  grid-template-columns:repeat(auto-fill,minmax(124px,1fr))}
+
+.agent{display:flex;flex-direction:column;align-items:center;gap:8px;position:relative}
+
+/* The stage gives the orb its perspective and holds the ground shadow. */
+.stage{width:92px;height:92px;perspective:520px;position:relative;display:grid;place-items:center}
+.shadow{
+  position:absolute;bottom:-9px;left:50%;translate:-50% 0;width:52px;height:11px;border-radius:50%;
+  background:radial-gradient(ellipse,hsl(var(--hue) 80% 50% / .34),transparent 70%);
+  filter:blur(3px);animation:shadowPulse 4.2s ease-in-out infinite;
+}
+@keyframes shadowPulse{0%,100%{width:52px;opacity:.75}50%{width:40px;opacity:.42}}
+
+.orb{
+  width:70px;height:70px;position:relative;transform-style:preserve-3d;
+  animation:float 4.2s ease-in-out infinite;
+}
+@keyframes float{
+  0%,100%{transform:translateY(0) rotateX(6deg) rotateY(-9deg)}
+  50%{transform:translateY(-9px) rotateX(-4deg) rotateY(9deg)}
+}
+.orb .ball{
+  position:absolute;inset:0;border-radius:50%;display:grid;place-items:center;font-size:2rem;
+  line-height:1;
+  background:
+    radial-gradient(circle at 33% 27%,
+      hsl(var(--hue) 96% 80%) 0%, hsl(var(--hue) 88% 58%) 38%,
+      hsl(var(--hue) 82% 36%) 72%, hsl(var(--hue) 78% 22%) 100%);
+  box-shadow:
+    inset -9px -11px 20px hsl(var(--hue) 72% 14% / .85),
+    inset 7px 9px 18px #ffffff40,
+    0 16px 28px -8px hsl(var(--hue) 80% 18% / .8);
+  text-shadow:0 2px 5px #0008;
+  transform:translateZ(14px);
+}
+/* specular highlight */
+.orb .ball::after{
+  content:"";position:absolute;top:9%;left:19%;width:34%;height:26%;border-radius:50%;
+  background:linear-gradient(#ffffffcc,#ffffff12);filter:blur(2.5px);transform:rotate(-22deg);
+}
+/* the status ring sits behind the ball in 3D */
+.ring{
+  position:absolute;inset:-9px;border-radius:50%;border:2px solid hsl(var(--hue) 85% 60% / .3);
+  transform:translateZ(-6px) rotateX(74deg);
+}
+
+/* ── state: idle ── */
+.agent[data-state="idle"] .ring{border-style:dashed;opacity:.5}
+
+/* ── state: working — spinning sweep ── */
+.agent[data-state="working"] .orb{animation:float 2.1s ease-in-out infinite}
+.agent[data-state="working"] .ring{
+  border-color:hsl(var(--hue) 90% 62% / .85);
+  border-top-color:transparent;border-left-color:transparent;
+  animation:sweep 1.05s linear infinite;
+  box-shadow:0 0 18px hsl(var(--hue) 90% 55% / .5);
+}
+@keyframes sweep{to{transform:translateZ(-6px) rotateX(74deg) rotateZ(360deg)}}
+.agent[data-state="working"] .stage::after{
+  content:"";position:absolute;inset:-14px;border-radius:50%;
+  border:1px solid hsl(var(--hue) 90% 60% / .35);
+  animation:radar 1.9s ease-out infinite;
+}
+@keyframes radar{0%{transform:scale(.62);opacity:.85}100%{transform:scale(1.35);opacity:0}}
+
+/* ── state: thinking — rising thought bubbles ── */
+.agent[data-state="thinking"] .orb{animation:float 5.6s ease-in-out infinite}
+.agent[data-state="thinking"] .ring{border-color:#a78bfa66;animation:breathe 2.4s ease-in-out infinite}
+@keyframes breathe{0%,100%{opacity:.35;inset:-9px}50%{opacity:.9;inset:-13px}}
+.bubbles{position:absolute;top:-6px;right:4px;width:28px;height:34px;pointer-events:none;opacity:0;transition:.3s}
+.agent[data-state="thinking"] .bubbles{opacity:1}
+.bubbles i{
+  position:absolute;bottom:0;border-radius:50%;background:#c4b5fd;opacity:0;
+  animation:rise 2.1s ease-out infinite;
+}
+.bubbles i:nth-child(1){width:5px;height:5px;left:2px;animation-delay:0s}
+.bubbles i:nth-child(2){width:7px;height:7px;left:9px;animation-delay:.45s}
+.bubbles i:nth-child(3){width:4px;height:4px;left:19px;animation-delay:.9s}
+@keyframes rise{
+  0%{opacity:0;transform:translateY(6px) scale(.5)}
+  35%{opacity:.95}
+  100%{opacity:0;transform:translateY(-26px) scale(1.15)}
+}
+
+/* ── state: found — a pop and a burst ── */
+.agent[data-state="found"] .orb{animation:pop .72s cubic-bezier(.3,1.7,.4,1)}
+@keyframes pop{
+  0%{transform:scale(1) rotateY(0)}
+  32%{transform:scale(1.28) rotateY(190deg)}
+  62%{transform:scale(.94) rotateY(350deg)}
+  100%{transform:scale(1) rotateY(360deg)}
+}
+.agent[data-state="found"] .ball{box-shadow:
+  inset -9px -11px 20px hsl(var(--hue) 72% 14% / .85),
+  inset 7px 9px 18px #ffffff40,
+  0 0 34px 6px #fbbf2466, 0 16px 28px -8px hsl(var(--hue) 80% 18% / .8)}
+.agent[data-state="found"] .stage::before{
+  content:"";position:absolute;inset:-18px;border-radius:50%;
+  background:radial-gradient(circle,#fbbf2433,transparent 62%);
+  animation:burst .9s ease-out forwards;
+}
+@keyframes burst{0%{transform:scale(.4);opacity:1}100%{transform:scale(1.6);opacity:0}}
+
+/* ── state: blocked — refused by the contract ── */
+.agent[data-state="blocked"] .orb{animation:shake .5s cubic-bezier(.36,.07,.19,.97) 2}
+@keyframes shake{
+  10%,90%{transform:translateX(-2px) rotateZ(-3deg)}
+  30%,70%{transform:translateX(3px) rotateZ(4deg)}
+  50%{transform:translateX(-4px) rotateZ(-5deg)}
+}
+.agent[data-state="blocked"] .ring{border-color:#f8717199;box-shadow:0 0 16px #f8717155}
+.agent[data-state="blocked"] .ball{filter:grayscale(.45) brightness(.85)}
+
+/* name + detail */
+.agent .name{font-size:.78rem;font-weight:600;letter-spacing:-.01em}
+.agent .role{font-size:.6rem;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.11em}
+.agent .detail{
+  font-size:.62rem;color:var(--ink-faint);text-align:center;line-height:1.35;min-height:2.3em;
+  max-width:122px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
+  font-family:var(--mono);
+}
+.agent .tally{display:flex;gap:7px;font-size:.6rem;color:var(--ink-faint);font-variant-numeric:tabular-nums}
+.agent .tally b{color:var(--ink-dim);font-weight:600}
+
+/* ─── event feed ───────────────────────────────────────────────────── */
+.feed{max-height:430px;overflow-y:auto;padding:4px 0}
+.feed::-webkit-scrollbar{width:7px}
+.feed::-webkit-scrollbar-thumb{background:#243055;border-radius:99px}
+.ev{display:flex;gap:10px;padding:8px 17px;border-bottom:1px solid var(--line-soft);
+  font-size:.76rem;animation:slideIn .3s ease-out}
+@keyframes slideIn{from{opacity:0;transform:translateX(-7px)}to{opacity:1;transform:none}}
+.ev .ic{width:19px;flex:none;text-align:center;font-size:.86rem}
+.ev .bd{min-width:0;flex:1}
+.ev .bd .k{color:var(--ink-faint);font-size:.63rem;text-transform:uppercase;letter-spacing:.09em}
+.ev .bd .t{color:var(--ink-dim);line-height:1.42;word-break:break-word;white-space:pre-wrap}
+.ev.lead .bd .t{color:var(--ink)}
+.ev.bad .bd .t{color:#ffc2c2}
+.ev.warn .bd .t{color:#fde68a}
+.ev.good .bd .t{color:#a7f3d0}
+
+/* ─── findings ─────────────────────────────────────────────────────── */
+table{width:100%;border-collapse:collapse;font-size:.79rem}
+thead th{
+  text-align:left;padding:9px 14px;font-size:.64rem;text-transform:uppercase;letter-spacing:.1em;
+  color:var(--ink-faint);border-bottom:1px solid var(--line);font-weight:600;background:#0d132399;
+}
+tbody td{padding:10px 14px;border-bottom:1px solid var(--line-soft);vertical-align:top}
+tbody tr{cursor:pointer;transition:background .14s}
+tbody tr:hover{background:#ffffff07}
+.sev{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;
+  font-size:.66rem;font-weight:650;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}
+.sev::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.sev.critical{background:#fb3b5320;color:#ff8fa0}
+.sev.high{background:#f8717118;color:#ffb0b0}
+.sev.medium{background:#fbbf2418;color:#fcd77f}
+.sev.low{background:#5b8cff18;color:#a8c2ff}
+.sev.none,.sev.unrated{background:#ffffff0d;color:var(--ink-faint)}
+.vd{font-size:.66rem;font-weight:650;text-transform:uppercase;letter-spacing:.06em}
+.vd.confirmed{color:#ff8fa0}.vd.rejected{color:var(--ink-faint)}
+.vd.theoretical{color:#fcd77f}.vd.proposed,.vd.under_review{color:#a8c2ff}
+.score{font-family:var(--mono);font-variant-numeric:tabular-nums;color:var(--ink-dim)}
+.empty{padding:34px 18px;text-align:center;color:var(--ink-faint);font-size:.8rem}
+
+/* ─── launch panel ─────────────────────────────────────────────────── */
+.launch{max-width:720px;margin:4vh auto}
+.launch .card{padding:0}
+.lf{padding:20px 22px;display:grid;gap:16px}
+label{display:block;font-size:.68rem;text-transform:uppercase;letter-spacing:.1em;
+  color:var(--ink-faint);margin-bottom:6px;font-weight:600}
+input[type=text],input[type=number]{
+  width:100%;padding:11px 13px;border-radius:10px;border:1px solid var(--line);
+  background:#0b1020;color:var(--ink);font-family:var(--mono);font-size:.84rem;
+}
+input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px #5b8cff22}
+.picks{display:flex;flex-wrap:wrap;gap:7px}
+.pick{
+  display:flex;align-items:center;gap:6px;padding:7px 12px;border-radius:999px;
+  border:1px solid var(--line);background:#0e1527;font-size:.76rem;color:var(--ink-dim);
+  cursor:pointer;user-select:none;transition:.15s;
+}
+.pick:hover{border-color:#2d3b66}
+.pick.on{border-color:hsl(var(--hue) 85% 58% / .75);background:hsl(var(--hue) 70% 50% / .13);color:var(--ink)}
+.verdict{padding:14px 18px;border-radius:12px;font-size:.8rem;line-height:1.55;border:1px solid}
+.verdict.ok{border-color:#34d39940;background:#34d39910;color:#b6f3da}
+.verdict.no{border-color:#f8717140;background:#f8717110;color:#ffc9c9}
+.verdict dl{margin:10px 0 0;display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:.75rem}
+.verdict dt{color:var(--ink-faint)}
+.verdict dd{margin:0;color:var(--ink)}
+.row{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap}
+.row>*{flex:1;min-width:150px}
+.hint{font-size:.72rem;color:var(--ink-faint);line-height:1.55}
+
+/* ─── drawer ───────────────────────────────────────────────────────── */
+.scrim{position:fixed;inset:0;background:#03060ccc;backdrop-filter:blur(3px);z-index:40;
+  opacity:0;pointer-events:none;transition:.22s}
+.scrim.open{opacity:1;pointer-events:auto}
+.drawer{
+  position:fixed;top:0;right:0;bottom:0;width:min(680px,94vw);z-index:50;
+  background:var(--panel-solid);border-left:1px solid var(--line);
+  transform:translateX(102%);transition:transform .28s cubic-bezier(.22,1,.36,1);
+  display:flex;flex-direction:column;
+}
+.drawer.open{transform:none}
+.drawer header{display:flex;align-items:flex-start;gap:14px;padding:18px 20px;border-bottom:1px solid var(--line)}
+.drawer header h3{margin:0 0 5px;font-size:1rem;line-height:1.35}
+.drawer .body{overflow-y:auto;padding:18px 20px 40px;display:grid;gap:20px}
+.drawer .body::-webkit-scrollbar{width:7px}
+.drawer .body::-webkit-scrollbar-thumb{background:#243055;border-radius:99px}
+.sec h4{margin:0 0 8px;font-size:.66rem;text-transform:uppercase;letter-spacing:.11em;color:var(--ink-faint)}
+.sec p{margin:0;font-size:.83rem;line-height:1.62;color:var(--ink-dim)}
+pre{margin:0;padding:12px 14px;border-radius:10px;background:#070b16;border:1px solid var(--line);
+  overflow-x:auto;font-family:var(--mono);font-size:.72rem;line-height:1.55;color:#c3cfe8}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:5px 14px;font-size:.78rem}
+.kv dt{color:var(--ink-faint)}
+.kv dd{margin:0;font-family:var(--mono);font-size:.74rem;word-break:break-all}
+.turn{border-left:2px solid var(--line);padding:2px 0 2px 13px;margin-bottom:13px}
+.turn .who{font-size:.72rem;font-weight:650;margin-bottom:3px}
+.turn .who small{font-weight:500;color:var(--ink-faint);margin-left:7px;text-transform:uppercase;
+  letter-spacing:.07em;font-size:.62rem}
+.turn p{font-size:.79rem;color:var(--ink-dim);line-height:1.6}
+.turn.support{border-left-color:var(--good)}
+.turn.refute{border-left-color:var(--bad)}
+.turn.abstain{border-left-color:var(--warn)}
+.turn.ruling{border-left-color:var(--accent);background:#5b8cff09;border-radius:0 8px 8px 0;padding:9px 13px}
+.x{background:none;border:none;color:var(--ink-faint);font-size:1.3rem;line-height:1;padding:2px 7px}
+.x:hover{color:var(--ink)}
+
+@media (max-width:1080px){.grid{grid-template-columns:1fr}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div id="app">
+  <header class="top">
+    <div class="brand">
+      <div class="mark">🐝</div>
+      <div>
+        <h1>swarmstrike</h1>
+        <p id="subtitle">authorized assessment</p>
+      </div>
+    </div>
+    <div class="spacer"></div>
+    <div class="meta" id="meta"></div>
+    <div class="gauges" id="gauges"></div>
+    <button class="btn-danger" id="haltBtn" hidden>Halt campaign</button>
+  </header>
+
+  <!-- launch ------------------------------------------------------- -->
+  <section class="launch" id="launch">
+    <div class="card">
+      <h2>Start a campaign</h2>
+      <div class="lf">
+        <div>
+          <label for="path">Engagement contract</label>
+          <input type="text" id="path" value="engagement.yaml" spellcheck="false">
+          <p class="hint" style="margin:7px 0 0">
+            A campaign will not start on an unsigned contract. Verify it first — the
+            scope shown below is exactly what the agents will be allowed to touch.
+          </p>
+        </div>
+        <div id="contractVerdict"></div>
+        <div>
+          <label>Roster</label>
+          <div class="picks" id="picks"></div>
+        </div>
+        <div class="row">
+          <div>
+            <label for="image">Toolbox image</label>
+            <input type="text" id="image" value="swarmstrike/toolbox:latest" spellcheck="false">
+          </div>
+          <div style="max-width:150px">
+            <label for="rounds">Review rounds</label>
+            <input type="number" id="rounds" value="2" min="1" max="4">
+          </div>
+        </div>
+        <label class="pick" style="width:fit-content" for="skipPre">
+          <input type="checkbox" id="skipPre" style="width:auto;margin:0">
+          Skip the Docker and toolbox image check
+        </label>
+        <div class="row" style="justify-content:flex-end">
+          <button class="btn" id="verifyBtn" style="flex:none">Verify contract</button>
+          <button class="btn-primary" id="startBtn" style="flex:none" disabled>Start campaign</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- live --------------------------------------------------------- -->
+  <main id="live" hidden>
+    <div class="grid">
+      <section class="card">
+        <h2>War room <span class="count" id="roomCount"></span></h2>
+        <div class="room" id="room"></div>
+      </section>
+      <section class="card">
+        <h2>Activity <span class="count" id="feedCount"></span></h2>
+        <div class="feed" id="feed"></div>
+      </section>
+    </div>
+
+    <section class="card" style="margin-top:18px">
+      <h2>Findings <span class="count" id="findCount"></span></h2>
+      <div id="findWrap"><p class="empty">Nothing proposed yet.</p></div>
+    </section>
+  </main>
+</div>
+
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer">
+  <header>
+    <div style="flex:1;min-width:0">
+      <h3 id="dTitle">—</h3>
+      <div id="dBadges" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+    </div>
+    <button class="x" id="dClose">&times;</button>
+  </header>
+  <div class="body" id="dBody"></div>
+</aside>
+
+<script>
+"use strict";
+const $ = (s) => document.querySelector(s);
+const el = (tag, cls, text) => { const n = document.createElement(tag);
+  if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
+
+const state = { session:null, faces:{}, specialists:[], picks:new Set(),
+                agents:new Map(), findings:new Map(), socket:null, events:0 };
+
+/* ── event presentation ─────────────────────────────────────────── */
+const EV = {
+  "campaign.start":   ["🚀","good"], "preflight":       ["🧰",""],
+  "phase":            ["◆",""],      "lead":            ["🎩","lead"],
+  "lead.error":       ["⚠","warn"],  "agent.tool.start":["▶",""],
+  "agent.tool.end":   ["✓",""],      "agent.refused":   ["⛔","bad"],
+  "agent.asset":      ["📍",""],     "agent.finding":   ["🎯","warn"],
+  "agent.review.start":["🔍",""],    "agent.review.end":["🗳",""],
+  "ruling":           ["⚖","warn"],  "spend":           ["💳",""],
+  "campaign.halted":  ["🛑","bad"],  "budget.exhausted":["💸","warn"],
+  "window.closed":    ["🕒","warn"], "review.stopped":  ["⏸","warn"],
+  "report.written":   ["📄","good"], "report.failed":   ["✗","bad"],
+  "campaign.done":    ["🏁","good"], "campaign.failed": ["✗","bad"],
+  "session.closed":   ["·",""],
+};
+
+function describe(kind, d) {
+  switch (kind) {
+    case "campaign.start":    return `${d.client} — ${d.campaign_id}`;
+    case "preflight":         return d.detail;
+    case "phase":             return d.name.toUpperCase();
+    case "lead":              return d.text;
+    case "lead.error":        return `lead agent: ${d.subtype} ${d.detail || ""}`;
+    case "agent.tool.start":  return `${d.agent} → ${d.tool} ${(d.targets||[]).join(", ")}`;
+    case "agent.tool.end":    return `${d.agent} ${d.tool} exit ${d.exit_code} · ${d.duration_ms}ms`;
+    case "agent.refused":     return `${d.agent} ${d.tool} refused [${d.rule}] ${d.reason}`;
+    case "agent.asset":       return `${d.agent} found ${d.kind} ${d.value}`;
+    case "agent.finding":     return `${d.agent} proposed ${d.finding_id}: ${d.title}`;
+    case "agent.review.start":return `${d.agent} is reviewing`;
+    case "agent.review.end":  return `${d.agent} → ${d.stance}`;
+    case "ruling":            return `${d.finding_id} ${d.verdict} · ${d.severity} · ${Math.round(d.confidence*100)}%`;
+    case "spend":             return d.status;
+    case "report.written":    return `report written to ${d.path}`;
+    case "report.failed":     return d.detail;
+    case "campaign.done":     return `finished: ${d.status} · ${d.spend}`;
+    case "campaign.failed":   return d.detail;
+    default:                  return d.reason || d.detail || d.status || JSON.stringify(d);
+  }
+}
+
+/* ── war room ───────────────────────────────────────────────────── */
+function drawAgent(a) {
+  const node = el("div", "agent");
+  node.dataset.agent = a.agent;
+  node.dataset.state = a.state || "idle";
+  node.style.setProperty("--hue", a.hue || "220");
+
+  const stage = el("div", "stage");
+  const orb = el("div", "orb");
+  orb.append(el("div", "ring"));
+  const ball = el("div", "ball", a.emoji || "🤖");
+  orb.append(ball);
+  stage.append(orb, el("div", "shadow"));
+
+  const bubbles = el("div", "bubbles");
+  bubbles.append(el("i"), el("i"), el("i"));
+  stage.append(bubbles);
+
+  const tally = el("div", "tally");
+  tally.innerHTML = `<span><b>${a.tools||0}</b> runs</span><span><b>${a.findings||0}</b> finds</span>`;
+
+  node.append(stage, el("div", "name", a.label || a.agent),
+              el("div", "role", a.role || ""),
+              el("div", "detail", a.detail || ""), tally);
+  return node;
+}
+
+function renderRoom() {
+  const room = $("#room");
+  const order = { orchestrator:0, specialist:1, challenge:2 };
+  const list = [...state.agents.values()].sort((x,y) =>
+    (order[x.role]??9) - (order[y.role]??9) || x.agent.localeCompare(y.agent));
+  room.replaceChildren(...list.map(drawAgent));
+  const busy = list.filter(a => a.state && a.state !== "idle").length;
+  $("#roomCount").textContent = `${list.length} agents · ${busy} active`;
+}
+
+function touchAgent(a) {
+  const node = $(`.agent[data-agent="${CSS.escape(a.agent)}"]`);
+  if (!node) { renderRoom(); return; }
+  // Re-triggering a one-shot animation needs the attribute to actually change.
+  if (node.dataset.state !== a.state) {
+    if (a.state === "found" || a.state === "blocked") {
+      node.dataset.state = "idle";
+      void node.offsetWidth;
+    }
+    node.dataset.state = a.state || "idle";
+  }
+  node.querySelector(".detail").textContent = a.detail || "";
+  node.querySelector(".tally").innerHTML =
+    `<span><b>${a.tools||0}</b> runs</span><span><b>${a.findings||0}</b> finds</span>`;
+  const busy = [...state.agents.values()].filter(x => x.state && x.state !== "idle").length;
+  $("#roomCount").textContent = `${state.agents.size} agents · ${busy} active`;
+}
+
+/* The server tracks agent state too; this mirrors it so a single event
+   updates one avatar instead of redrawing the whole room. */
+function applyToAgent(kind, d) {
+  let name = d.agent;
+  if (kind === "lead") name = "lead";
+  if (!name) return;
+  const bare = name.includes(":") ? name.split(":").pop() : name;
+  let a = state.agents.get(name) || state.agents.get(bare);
+  if (!a) {
+    const f = state.faces[bare] || {emoji:"🤖", label:bare, hue:"220", role:"specialist"};
+    a = {agent:name, ...f, state:"idle", detail:"", tools:0, findings:0, assets:0, refusals:0};
+    state.agents.set(name, a);
+    renderRoom();
+  }
+
+  if (kind === "agent.tool.start") {
+    a.state = "working"; a.tools++;
+    a.detail = `${d.tool} → ${(d.targets||[]).join(", ") || "—"}`;
+  } else if (kind === "agent.tool.end") {
+    a.state = "idle"; a.detail = `${d.tool} done in ${d.duration_ms}ms`;
+  } else if (kind === "agent.refused") {
+    a.state = "blocked"; a.refusals++; a.detail = `refused: ${d.rule}`;
+    setTimeout(() => { if (a.state === "blocked") { a.state = "idle"; touchAgent(a); } }, 2200);
+  } else if (kind === "agent.asset") {
+    a.assets++; a.detail = `found ${d.kind} ${d.value}`;
+  } else if (kind === "agent.finding") {
+    a.state = "found"; a.findings++; a.detail = `${d.finding_id} ${d.title||""}`.slice(0,120);
+    setTimeout(() => { if (a.state === "found") { a.state = "idle"; touchAgent(a); } }, 1400);
+  } else if (kind === "agent.review.start") {
+    a.state = "thinking"; a.detail = "reviewing a finding";
+  } else if (kind === "agent.review.end") {
+    a.state = "idle"; a.detail = `ruled: ${d.stance||""}`;
+  } else if (kind === "lead") {
+    a.state = "thinking"; a.detail = (d.text||"").trim().slice(0,160);
+  }
+  touchAgent(a);
+}
+
+/* ── feed ───────────────────────────────────────────────────────── */
+function pushEvent(ev) {
+  if (ev.kind === "spend") { return; }   // the gauges already show this
+  const [icon, tone] = EV[ev.kind] || ["·",""];
+  const row = el("div", `ev ${tone}`);
+  row.append(el("div", "ic", icon));
+  const body = el("div", "bd");
+  body.append(el("div", "k", ev.kind), el("div", "t", describe(ev.kind, ev.data || {})));
+  row.append(body);
+
+  const feed = $("#feed");
+  feed.prepend(row);
+  while (feed.childElementCount > 220) feed.lastElementChild.remove();
+  $("#feedCount").textContent = `${++state.events} events`;
+}
+
+/* ── gauges & header ────────────────────────────────────────────── */
+function gauge(label, value, max, text) {
+  const pct = max > 0 ? Math.min(100, (value / max) * 100) : 0;
+  const g = el("div", "gauge");
+  g.innerHTML = `<div class="lbl"><span>${label}</span><span>${text}</span></div>
+    <div class="bar${pct > 75 ? " hot" : ""}"><i style="width:${pct}%"></i></div>`;
+  return g;
+}
+
+function renderHeader(s) {
+  $("#subtitle").textContent = `${s.client} · ${s.mission}`;
+  const b = s.budget || {};
+  $("#gauges").replaceChildren(
+    gauge("Cost", b.usd, b.max_usd, `$${(b.usd??0).toFixed(2)} / $${(b.max_usd??0).toFixed(0)}`),
+    gauge("Tokens", b.tokens, b.max_tokens, `${((b.tokens??0)/1e6).toFixed(2)}M`),
+    gauge("Time", b.minutes, b.max_minutes, `${b.minutes??0} / ${b.max_minutes??0} min`),
+  );
+
+  const chips = [];
+  const live = s.status === "running" && !s.halted;
+  const statusChip = el("div", `chip ${live ? "live" : s.halted ? "halted" : ""}`);
+  statusChip.innerHTML = `<b>${s.halted ? "halted" : s.status}</b>`;
+  chips.push(statusChip);
+
+  const sum = s.summary || {};
+  const sev = sum.confirmed_by_severity || {};
+  const confirmed = Object.values(sev).reduce((a, n) => a + n, 0);
+  chips.push(Object.assign(el("div","chip"), {innerHTML:`<b>${sum.assets??0}</b> assets`}));
+  chips.push(Object.assign(el("div","chip"), {innerHTML:`<b>${sum.commands??0}</b> commands`}));
+  chips.push(Object.assign(el("div","chip"), {innerHTML:`<b>${confirmed}</b> confirmed`}));
+  if (s.status !== "running") {
+    const link = el("a", "chip", "Open report");
+    link.href = `/api/campaigns/${s.id}/report`; link.target = "_blank";
+    link.style.textDecoration = "none";
+    chips.push(link);
+  }
+  $("#meta").replaceChildren(...chips);
+  $("#haltBtn").hidden = !(s.status === "running" && !s.halted);
+}
+
+/* ── findings ───────────────────────────────────────────────────── */
+function renderFindings() {
+  const rows = [...state.findings.values()].sort((a, b) =>
+    (b.cvss_score ?? 0) - (a.cvss_score ?? 0) || a.id.localeCompare(b.id));
+  $("#findCount").textContent = `${rows.length} proposed`;
+
+  if (!rows.length) {
+    $("#findWrap").replaceChildren(
+      Object.assign(el("p","empty"), {textContent:"Nothing proposed yet."}));
+    return;
+  }
+
+  const table = el("table");
+  table.innerHTML = `<thead><tr><th>ID</th><th>Finding</th><th>Asset</th>
+    <th>Severity</th><th>CVSS</th><th>Verdict</th><th>By</th></tr></thead>`;
+  const body = el("tbody");
+  for (const f of rows) {
+    const tr = el("tr");
+    tr.innerHTML = `
+      <td class="score">${f.id}</td>
+      <td>${esc(f.title)}</td>
+      <td class="score">${esc(f.asset || "—")}</td>
+      <td><span class="sev ${f.severity || "unrated"}">${f.severity || "unrated"}</span></td>
+      <td class="score">${f.cvss_score ?? "—"}</td>
+      <td><span class="vd ${f.status}">${f.status.replace("_"," ")}</span></td>
+      <td class="score">${esc(f.discovered_by || "")}</td>`;
+    tr.onclick = () => openFinding(f.id);
+    body.append(tr);
+  }
+  table.append(body);
+  $("#findWrap").replaceChildren(table);
+}
+
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g,
+  (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+async function refreshFindings() {
+  if (!state.session || state.demo) return;
+  try {
+    const list = await (await fetch(`/api/campaigns/${state.session}/findings`)).json();
+    state.findings = new Map(list.map((f) => [f.id, f]));
+    renderFindings();
+  } catch {}
+}
+
+async function openFinding(id) {
+  if (state.demo) { return demoFinding(id); }
+  const res = await fetch(`/api/campaigns/${state.session}/findings/${id}`);
+  if (!res.ok) return;
+  const d = await res.json();
+  showFinding(d.finding, d.evidence, d.reviews, d.arbitrations);
+}
+
+/* Shared by the live view and demo mode, so what is demonstrated is what runs. */
+function showFinding(f, evidence, reviews, arbitrations) {
+  evidence = evidence || []; reviews = reviews || []; arbitrations = arbitrations || [];
+
+  $("#dTitle").textContent = `${f.id} — ${f.title}`;
+  $("#dBadges").replaceChildren(
+    Object.assign(el("span", `sev ${f.severity||"unrated"}`), {textContent:f.severity||"unrated"}),
+    Object.assign(el("span", `vd ${f.status}`), {textContent:f.status.replace("_"," ")}),
+    Object.assign(el("span","score"), {textContent:f.cvss_score ? `CVSS ${f.cvss_score}` : ""}),
+  );
+
+  const body = $("#dBody");
+  body.replaceChildren();
+
+  const meta = el("div","sec");
+  meta.append(el("h4",null,"Detail"));
+  const dl = el("dl","kv");
+  const pairs = [["Asset",f.asset],["Domain",f.domain],["Found by",f.discovered_by],
+    ["CVSS vector",f.cvss_vector],["CWE",f.cwe],["OWASP WSTG",f.owasp_wstg],
+    ["MITRE ATT&CK",f.mitre_attack],["Confidence",`${Math.round((f.confidence||0)*100)}%`]];
+  for (const [k,v] of pairs) if (v) { dl.append(el("dt",null,k), el("dd",null,v)); }
+  meta.append(dl);
+  body.append(meta);
+
+  for (const [heading, text] of [["Description", f.description || f.summary],
+                                 ["Impact", f.impact], ["Remediation", f.remediation]]) {
+    if (!text) continue;
+    const sec = el("div","sec");
+    sec.append(el("h4",null,heading), el("p",null,text));
+    body.append(sec);
+  }
+
+  if (evidence.length) {
+    const sec = el("div","sec");
+    sec.append(el("h4",null,"Evidence"));
+    for (const item of evidence) {
+      if (item.label) sec.append(el("div","role",item.label));
+      sec.append(el("pre",null,item.content));
+    }
+    body.append(sec);
+  }
+
+  const sec = el("div","sec");
+  sec.append(el("h4",null,"The debate"));
+  if (!reviews.length && !arbitrations.length) {
+    sec.append(el("p",null,"This finding has not been reviewed yet."));
+  }
+  for (const r of reviews) {
+    const turn = el("div",`turn ${r.stance}`);
+    const who = el("div","who", r.reviewer);
+    who.append(Object.assign(el("small"),{textContent:`${r.stance} · round ${r.round}`}));
+    turn.append(who, el("p",null,r.rationale));
+    sec.append(turn);
+  }
+  for (const a of arbitrations) {
+    const turn = el("div","turn ruling");
+    const who = el("div","who","arbiter");
+    who.append(Object.assign(el("small"),
+      {textContent:`${a.verdict} · ${Math.round(a.confidence*100)}% · round ${a.round}`}));
+    turn.append(who, el("p",null,a.rationale));
+    sec.append(turn);
+  }
+  body.append(sec);
+
+  $("#drawer").classList.add("open");
+  $("#scrim").classList.add("open");
+}
+
+function closeDrawer() {
+  $("#drawer").classList.remove("open");
+  $("#scrim").classList.remove("open");
+}
+
+/* ── socket ─────────────────────────────────────────────────────── */
+function connect(sessionId) {
+  const proto = location.protocol === "https:" ? "wss" : "ws";
+  const socket = new WebSocket(`${proto}://${location.host}/api/campaigns/${sessionId}/stream`);
+  state.socket = socket;
+
+  const keepalive = setInterval(() => {
+    if (socket.readyState === WebSocket.OPEN) socket.send("ping");
+  }, 20000);
+
+  socket.onmessage = (msg) => {
+    const ev = JSON.parse(msg.data);
+    if (ev.kind === "snapshot") {
+      const s = ev.data;
+      state.agents = new Map((s.agents || []).map((a) => [a.agent, a]));
+      renderRoom(); renderHeader(s);
+      return;
+    }
+    if (ev.kind === "error") { pushEvent(ev); return; }
+
+    pushEvent(ev);
+    applyToAgent(ev.kind, ev.data || {});
+
+    if (["agent.finding","ruling","campaign.done","phase"].includes(ev.kind)) refreshFindings();
+    if (["spend","ruling","agent.asset","agent.tool.end","campaign.done",
+         "campaign.halted","campaign.failed"].includes(ev.kind)) refreshHeader();
+  };
+  socket.onclose = () => { clearInterval(keepalive); refreshHeader(); };
+}
+
+async function refreshHeader() {
+  if (!state.session || state.demo) return;
+  try { renderHeader(await (await fetch(`/api/campaigns/${state.session}`)).json()); } catch {}
+}
+
+/* ── launch ─────────────────────────────────────────────────────── */
+/* Fallback so the page still renders when it is opened as a file rather than
+   served — which is how the demo gets shared. */
+const FALLBACK_ROSTER = {
+  specialists:["recon","network","web","api","cloud","ad","code","crypto"],
+  faces:{
+    lead:{emoji:"\u{1F3A9}",label:"Lead",hue:"265",role:"orchestrator"},
+    recon:{emoji:"\u{1F6F0}",label:"Recon",hue:"199",role:"specialist"},
+    network:{emoji:"\u{1F50C}",label:"Network",hue:"217",role:"specialist"},
+    web:{emoji:"\u{1F578}",label:"Web",hue:"25",role:"specialist"},
+    api:{emoji:"\u{1F517}",label:"API",hue:"45",role:"specialist"},
+    cloud:{emoji:"\u2601",label:"Cloud",hue:"189",role:"specialist"},
+    ad:{emoji:"\u{1F3DB}",label:"Directory",hue:"280",role:"specialist"},
+    code:{emoji:"\u{1F4DC}",label:"Code",hue:"150",role:"specialist"},
+    crypto:{emoji:"\u{1F510}",label:"Crypto",hue:"95",role:"specialist"},
+    skeptic:{emoji:"\u{1F9D0}",label:"Skeptic",hue:"0",role:"challenge"},
+    arbiter:{emoji:"\u2696",label:"Arbiter",hue:"48",role:"challenge"},
+    reporter:{emoji:"\u{1F4DD}",label:"Reporter",hue:"210",role:"challenge"},
+  },
+};
+
+async function loadRoster() {
+  let payload = FALLBACK_ROSTER;
+  try {
+    const res = await fetch("/api/roster");
+    if (res.ok) payload = await res.json();
+  } catch { /* unserved page: the fallback above is correct */ }
+  const { specialists, faces } = payload;
+  state.specialists = specialists; state.faces = faces;
+  state.picks = new Set(specialists);
+
+  const picks = $("#picks");
+  picks.replaceChildren(...specialists.map((name) => {
+    const f = faces[name] || {};
+    const chip = el("div", "pick on");
+    chip.style.setProperty("--hue", f.hue || "220");
+    chip.innerHTML = `<span>${f.emoji || "🤖"}</span><span>${f.label || name}</span>`;
+    chip.onclick = () => {
+      if (state.picks.has(name)) { state.picks.delete(name); chip.classList.remove("on"); }
+      else { state.picks.add(name); chip.classList.add("on"); }
+    };
+    return chip;
+  }));
+}
+
+async function verifyContract() {
+  const box = $("#contractVerdict");
+  box.replaceChildren(Object.assign(el("div","verdict"),{textContent:"Checking…"}));
+
+  const res = await fetch("/api/engagement/verify", {
+    method:"POST", headers:{"content-type":"application/json"},
+    body: JSON.stringify({engagement_path: $("#path").value.trim()}),
+  });
+  const v = await res.json();
+
+  const div = el("div", `verdict ${v.ok ? "ok" : "no"}`);
+  div.append(el("div", null, (v.ok ? "✓ " : "✗ ") + v.reason));
+  if (v.ok) {
+    const dl = el("dl");
+    const scope = [...(v.scope.domains||[]), ...(v.scope.cidrs||[]),
+                   ...(v.scope.ips||[]), ...(v.scope.urls||[])].join(", ") || "none";
+    for (const [k,val] of [["Client",v.client],["Mission",v.mission],
+        ["Authorized by",v.authorized_by],["Authorization",v.authorization_ref],
+        ["Budget",`$${v.budget_usd}`],["In scope",scope],
+        ["Window",`${v.window_open ? "open" : "closed"} — ${v.window_reason}`]]) {
+      dl.append(el("dt",null,k), el("dd",null,val));
+    }
+    div.append(dl);
+    if (!v.window_open) {
+      div.append(Object.assign(el("div"),{style:"margin-top:10px",
+        textContent:"The testing window is closed, so the campaign will refuse to start."}));
+    }
+  }
+  box.replaceChildren(div);
+  $("#startBtn").disabled = !(v.ok && v.window_open);
+}
+
+async function startCampaign() {
+  const btn = $("#startBtn");
+  btn.disabled = true; btn.textContent = "Starting…";
+
+  const body = {
+    engagement_path: $("#path").value.trim(),
+    domains: state.picks.size && state.picks.size < state.specialists.length
+      ? [...state.picks] : null,
+    image: $("#image").value.trim(),
+    review_rounds: Number($("#rounds").value) || 2,
+    skip_preflight: $("#skipPre").checked,
+  };
+
+  const res = await fetch("/api/campaigns", {
+    method:"POST", headers:{"content-type":"application/json"}, body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({detail:"could not start the campaign"}));
+    $("#contractVerdict").replaceChildren(
+      Object.assign(el("div","verdict no"),{textContent:"✗ " + (err.detail || "failed")}));
+    btn.disabled = false; btn.textContent = "Start campaign";
+    return;
+  }
+
+  const session = await res.json();
+  state.session = session.id;
+  state.agents = new Map((session.agents||[]).map((a) => [a.agent, a]));
+  $("#launch").hidden = true; $("#live").hidden = false;
+  renderRoom(); renderHeader(session);
+  connect(session.id);
+}
+
+
+/* ── demo mode ──────────────────────────────────────────────────────
+   `?demo=1` replays a scripted stream through the same renderers the live
+   view uses, with no backend and no campaign. It exists so the interface can
+   be shown — to a colleague, or to a client — without pointing anything at a
+   real target. Nothing here touches the API. */
+const DEMO_FINDINGS = {
+  "F-001": {
+    finding:{id:"F-001",title:"Unauthenticated access to administrative interface",
+      domain:"web",asset:"https://admin.example.pf/",status:"confirmed",confidence:0.95,
+      severity:"critical",cvss_score:9.8,
+      cvss_vector:"CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+      cwe:"CWE-306",owasp_wstg:"WSTG-ATHN-01",mitre_attack:"T1190",discovered_by:"web",
+      summary:"The administration console is reachable without authentication.",
+      description:"The console at /admin responds to unauthenticated requests and exposes user management.",
+      impact:"An attacker can create privileged accounts and read personal data of all registered users.",
+      remediation:"Require authentication on /admin at the reverse proxy and restrict it to the internal network."},
+    evidence:[{label:"Request and response",kind:"http",
+      content:"GET /admin HTTP/1.1\nHost: admin.example.pf\n\nHTTP/1.1 200 OK\nContent-Type: text/html\n\n<title>Administration</title>"}],
+    reviews:[
+      {reviewer:"peer:api",round:1,stance:"support",
+       rationale:"The same handler is exposed on the API at /v1/admin/users with no authorization check, so this is not an isolated misconfiguration."},
+      {reviewer:"skeptic",round:1,stance:"support",
+       rationale:"I tried to attribute the 200 to a login redirect rendered at 200, and to a WAF-served placeholder. Neither holds: the body contains the user table markup, and the Set-Cookie carries a session for an authenticated role. The vector is honest."}],
+    arbitrations:[{arbiter:"arbiter",round:1,verdict:"confirmed",confidence:0.95,
+      rationale:"Evidence shows an authenticated-only view served without credentials. Severity stands at critical; AV:N and PR:N are both supported by the exchange."}]},
+  "F-002": {
+    finding:{id:"F-002",title:"TLS 1.0 and 1.1 still enabled",domain:"crypto",
+      asset:"203.0.113.10:443",status:"confirmed",confidence:0.9,severity:"medium",
+      cvss_score:3.7,cvss_vector:"CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:L/I:N/A:N",
+      cwe:"CWE-327",discovered_by:"crypto",
+      summary:"Deprecated TLS versions are accepted.",
+      description:"The endpoint negotiates TLS 1.0 and 1.1 in addition to 1.2 and 1.3.",
+      impact:"Permits a downgrade against legacy clients, weakening transport confidentiality.",
+      remediation:"Disable TLS 1.0 and 1.1 in the nginx configuration and require TLS 1.2 or above."},
+    evidence:[{label:"sslscan",kind:"output",
+      content:"SSLv3    disabled\nTLSv1.0  enabled\nTLSv1.1  enabled\nTLSv1.2  enabled\nTLSv1.3  enabled"}],
+    reviews:[{reviewer:"skeptic",round:1,stance:"support",
+      rationale:"Confirmed against the handshake output. I argued for downgrading to low, but the host serves an authenticated session cookie, so C:L is right rather than C:N."}],
+    arbitrations:[{arbiter:"arbiter",round:1,verdict:"confirmed",confidence:0.9,
+      rationale:"Conclusive from the handshake. Medium is correct — AC:H reflects that exploitation needs a privileged network position."}]},
+  "F-003": {
+    finding:{id:"F-003",title:"Possible SQL injection in search parameter",domain:"web",
+      asset:"https://www.example.pf/search",status:"theoretical",confidence:0.4,
+      severity:"high",cvss_score:null,cvss_vector:null,discovered_by:"web",
+      summary:"Response timing varies with the payload in a way consistent with injection.",
+      description:"The q parameter shows a response time difference of roughly 4 seconds between a sleep payload and a control.",
+      impact:"If confirmed, would permit extraction of database contents.",
+      remediation:"Verify internally with database query logging enabled."},
+    evidence:[{label:"Timing comparison",kind:"output",
+      content:"q=test            -> 118ms\nq=test' AND SLEEP(4)-- -> 4182ms\nq=test' AND SLEEP(0)-- -> 121ms"}],
+    reviews:[
+      {reviewer:"peer:network",round:1,stance:"abstain",
+       rationale:"Timing on this host is noisy — I measured 300ms of jitter on unrelated endpoints under load. The signal may be real but the evidence does not separate it from jitter."},
+      {reviewer:"skeptic",round:1,stance:"refute",
+       rationale:"Three samples cannot distinguish injection from a slow code path that the quote happens to trigger. A confirming test would be a boolean-differential with a stable control, repeated; the contract stops at proof and that test was not run."}],
+    arbitrations:[{arbiter:"arbiter",round:1,verdict:"theoretical",confidence:0.4,
+      rationale:"The skeptic is right that this is not established. It is material enough that the client should check it with query logging, so it goes to the report as unproven rather than being dropped. No CVSS vector is assigned to an unproven finding."}]},
+  "F-004": {
+    finding:{id:"F-004",title:"Server header discloses version",domain:"web",
+      asset:"https://www.example.pf/",status:"rejected",confidence:0.8,severity:"none",
+      cvss_score:null,cvss_vector:null,discovered_by:"recon",
+      summary:"The Server header names the exact nginx build.",
+      description:"Responses carry Server: nginx/1.18.0.",impact:"",remediation:""},
+    evidence:[{label:"Response header",kind:"http",content:"Server: nginx/1.18.0"}],
+    reviews:[{reviewer:"skeptic",round:1,stance:"refute",
+      rationale:"This is not a vulnerability. It gives an attacker nothing they would not learn from fingerprinting in one request, and reporting it alongside real findings trains the client to skim the report."}],
+    arbitrations:[{arbiter:"arbiter",round:1,verdict:"rejected",confidence:0.8,
+      rationale:"Rejected. It stays in the engagement record, but it does not earn a place in the report body and would dilute the findings that do."}]},
+};
+
+function demoFinding(id) {
+  const d = DEMO_FINDINGS[id];
+  if (!d) return;
+  showFinding(d.finding, d.evidence, d.reviews, d.arbitrations);
+}
+
+const DEMO_SCRIPT = [
+  [0,    "campaign.start", {campaign_id:"DEMO-20261023-1412", client:"Commune de Faa'a", directory:"campaigns/DEMO"}],
+  [400,  "preflight",      {ready:true, detail:"toolbox image swarmstrike/toolbox:latest ready"}],
+  [900,  "phase",          {name:"assessment"}],
+  [1200, "lead",           {text:"Delegating to recon first — nothing else can be planned until the surface is known."}],
+  [2000, "agent.tool.start",{agent:"recon", tool:"subfinder", targets:["example.pf"]}],
+  [3400, "agent.asset",    {agent:"recon", kind:"domain", value:"www.example.pf"}],
+  [3900, "agent.asset",    {agent:"recon", kind:"domain", value:"admin.example.pf"}],
+  [4300, "agent.asset",    {agent:"recon", kind:"host",   value:"203.0.113.10"}],
+  [4800, "agent.tool.end", {agent:"recon", tool:"subfinder", duration_ms:2810, exit_code:0}],
+  [5200, "lead",           {text:"Recon found an admin subdomain. Assigning hosts to network, the web surface to web, TLS to crypto — in parallel, no overlap."}],
+  [6000, "agent.tool.start",{agent:"network", tool:"nmap", targets:["203.0.113.10"]}],
+  [6300, "agent.tool.start",{agent:"web",     tool:"httpx", targets:["admin.example.pf"]}],
+  [6600, "agent.tool.start",{agent:"crypto",  tool:"sslscan", targets:["203.0.113.10"]}],
+  [8200, "agent.tool.end", {agent:"web", tool:"httpx", duration_ms:1900, exit_code:0}],
+  [8700, "agent.tool.start",{agent:"web", tool:"curl", targets:["admin.example.pf"]}],
+  [9400, "agent.tool.end", {agent:"crypto", tool:"sslscan", duration_ms:2800, exit_code:0}],
+  [9900, "agent.finding",  {agent:"crypto", finding_id:"F-002", title:"TLS 1.0 and 1.1 still enabled", severity:"medium", cvss_score:3.7}],
+  [10600,"agent.tool.end", {agent:"network", tool:"nmap", duration_ms:4600, exit_code:0}],
+  [11200,"agent.tool.end", {agent:"web", tool:"curl", duration_ms:240, exit_code:0}],
+  [11700,"agent.finding",  {agent:"web", finding_id:"F-001", title:"Unauthenticated access to administrative interface", severity:"critical", cvss_score:9.8}],
+  [12400,"agent.tool.start",{agent:"network", tool:"nmap", targets:["8.8.8.8"]}],
+  [12500,"agent.refused",  {agent:"network", tool:"nmap", rule:"scope.miss", reason:"8.8.8.8 is not in any in-scope range"}],
+  [13200,"lead",           {text:"That target was outside the contract and was refused before it ran. Staying inside the authorized ranges."}],
+  [14000,"agent.finding",  {agent:"recon", finding_id:"F-004", title:"Server header discloses version", severity:"none"}],
+  [14800,"agent.finding",  {agent:"web", finding_id:"F-003", title:"Possible SQL injection in search parameter", severity:"high"}],
+  [15600,"lead",           {text:"Surface covered to the depth the budget allows. Handing the proposed findings to review."}],
+  [16400,"phase",          {name:"review", findings:4}],
+  [16900,"agent.review.start",{agent:"peer:api"}],
+  [18100,"agent.review.end", {agent:"peer:api", stance:"support"}],
+  [18500,"agent.review.start",{agent:"skeptic"}],
+  [20200,"agent.review.end", {agent:"skeptic", stance:"support"}],
+  [20600,"agent.review.start",{agent:"arbiter"}],
+  [22000,"agent.review.end", {agent:"arbiter", stance:"confirmed"}],
+  [22300,"ruling",         {finding_id:"F-001", verdict:"confirmed", severity:"critical", confidence:0.95}],
+  [23000,"agent.review.start",{agent:"skeptic"}],
+  [24300,"agent.review.end", {agent:"skeptic", stance:"support"}],
+  [24700,"ruling",         {finding_id:"F-002", verdict:"confirmed", severity:"medium", confidence:0.9}],
+  [25400,"agent.review.start",{agent:"skeptic"}],
+  [26900,"agent.review.end", {agent:"skeptic", stance:"refute"}],
+  [27300,"ruling",         {finding_id:"F-003", verdict:"theoretical", severity:"high", confidence:0.4}],
+  [28000,"agent.review.start",{agent:"skeptic"}],
+  [29200,"agent.review.end", {agent:"skeptic", stance:"refute"}],
+  [29600,"ruling",         {finding_id:"F-004", verdict:"rejected", severity:"none", confidence:0.8}],
+  [30400,"phase",          {name:"report"}],
+  [31200,"report.written", {path:"campaigns/DEMO/report.md"}],
+  [31800,"campaign.done",  {status:"completed", spend:"$3.84/$25.00 · 1,284,902 tokens · 14/180 min", report:"campaigns/DEMO/report.md"}],
+];
+
+function demoHeader(elapsed, status) {
+  const cap = 31800;
+  const share = Math.min(1, elapsed / cap);
+  const confirmed = [...state.findings.values()].filter(f => f.status === "confirmed");
+  const sev = {};
+  for (const f of confirmed) sev[f.severity] = (sev[f.severity] || 0) + 1;
+  renderHeader({
+    id:"demo", campaign_id:"DEMO-20261023-1412", client:"Commune de Faa'a",
+    mission:"Audit de sécurité externe (demo)", status, halted:false, halt_reason:"",
+    spend:"", budget:{usd:3.84*share, max_usd:25, tokens:Math.round(1284902*share),
+      max_tokens:20000000, minutes:+(14*share).toFixed(1), max_minutes:180},
+    summary:{assets:[...state.demoAssets].length, commands:state.demoCommands,
+      findings_by_status:{}, confirmed_by_severity:sev},
+    agents:[], directory:"campaigns/DEMO",
+  });
+}
+
+function runDemo() {
+  state.demo = true;
+  state.session = "demo";
+  state.demoAssets = new Set();
+  state.demoCommands = 0;
+  $("#launch").hidden = true;
+  $("#live").hidden = false;
+  $("#subtitle").textContent = "demonstration — no target is contacted";
+
+  for (const name of ["lead","recon","network","web","api","cloud","ad","code","crypto",
+                      "skeptic","arbiter","reporter"]) {
+    const f = state.faces[name] || {emoji:"🤖",label:name,hue:"220",role:"specialist"};
+    state.agents.set(name, {agent:name, ...f, state:"idle", detail:"",
+                            tools:0, findings:0, assets:0, refusals:0});
+  }
+  renderRoom();
+  demoHeader(0, "running");
+
+  for (const [at, kind, data] of DEMO_SCRIPT) {
+    setTimeout(() => {
+      pushEvent({seq:0, at:new Date().toISOString(), kind, data});
+      applyToAgent(kind, data);
+
+      if (kind === "agent.tool.start") state.demoCommands++;
+      if (kind === "agent.asset") state.demoAssets.add(data.value);
+
+      if (kind === "agent.finding") {
+        const src = DEMO_FINDINGS[data.finding_id];
+        if (src) state.findings.set(data.finding_id, {...src.finding, status:"proposed"});
+        renderFindings();
+      }
+      if (kind === "ruling") {
+        const existing = state.findings.get(data.finding_id);
+        if (existing) {
+          existing.status = data.verdict;
+          existing.confidence = data.confidence;
+          renderFindings();
+        }
+      }
+      demoHeader(at, kind === "campaign.done" ? "completed" : "running");
+    }, at);
+  }
+
+  // Loop so the view can be left running on a screen.
+  setTimeout(() => {
+    state.findings.clear(); state.agents.clear(); state.events = 0;
+    $("#feed").replaceChildren(); runDemo();
+  }, 38000);
+}
+
+$("#verifyBtn").onclick = verifyContract;
+$("#startBtn").onclick = startCampaign;
+$("#dClose").onclick = closeDrawer;
+$("#scrim").onclick = closeDrawer;
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeDrawer(); });
+$("#haltBtn").onclick = async () => {
+  if (!confirm("Halt the campaign? Agents stop before their next command. "
+             + "Findings already recorded are kept and still reviewed.")) return;
+  await fetch(`/api/campaigns/${state.session}/halt`, {
+    method:"POST", headers:{"content-type":"application/json"},
+    body: JSON.stringify({reason:"halted from the dashboard"}),
+  });
+  refreshHeader();
+};
+
+const DEMO = new URLSearchParams(location.search).has("demo");
+loadRoster().then(() => { if (DEMO) runDemo(); }).catch(() => { if (DEMO) runDemo(); });
+setInterval(() => { if (state.session && !state.demo) refreshHeader(); }, 5000);
+</script>
+</body>
+</html>
