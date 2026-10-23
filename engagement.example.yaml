@@ -1,0 +1,127 @@
+# ===========================================================================
+#  swarmstrike engagement contract
+# ===========================================================================
+#  This file is the authority for everything the agent swarm is allowed to do.
+#  It is not documentation: ScopeGuard parses it and refuses, at execution
+#  time, any command that falls outside it.
+#
+#  Sign it before running a campaign:
+#      swarmstrike engagement sign engagement.yaml
+#
+#  Autonomous mode refuses to start on an unsigned or modified contract.
+# ===========================================================================
+schema_version: 1
+
+engagement:
+  id: "ENG-2026-014"
+  client: "Example Organisation"
+  mission: "External security assessment"
+  reference: "QUOTE-2026-014"
+
+  # Written authorization for this test. Reproduced in the report cover page
+  # and in the audit log header. Without it, do not run this tool.
+  authorized_by:
+    name: "Jane Doe"
+    role: "CISO"
+    email: "ciso@example.org"
+    authorization_ref: "Signed engagement letter 2026-014 rev B"
+    signed_on: "2026-10-01"
+
+window:
+  # Every tool invocation outside this window is refused.
+  start: "2026-10-20T08:00:00+02:00"
+  end: "2026-10-31T18:00:00+02:00"
+  timezone: "Europe/Paris"
+  # Optional daily gate, local to `timezone`. Omit for 24/7.
+  daily_allowed_hours: "08:00-20:00"
+
+# ---------------------------------------------------------------------------
+#  Authorized targets. Anything not matched here is out of scope.
+# ---------------------------------------------------------------------------
+scope:
+  domains:
+    - name: "example.org"
+      include_subdomains: true
+  ips:
+    - "203.0.113.10"
+  cidrs:
+    - "203.0.113.0/28"
+  urls:
+    - "https://www.example.org/"
+
+  # When true, a domain in scope is only reachable if the IP it resolves to is
+  # also in scope. Protects against a CDN or shared host that the client does
+  # not own. Leave false when the client's DNS points outside their own ranges.
+  require_resolved_ip_in_scope: false
+
+# ---------------------------------------------------------------------------
+#  Exclusions are evaluated FIRST and always win over `scope`.
+# ---------------------------------------------------------------------------
+exclusions:
+  domains:
+    - name: "webmail.example.org"
+      include_subdomains: false
+  ips:
+    - "203.0.113.1"          # client's edge router, explicitly carved out
+  cidrs: []
+  # Refused as substrings of any requested URL path.
+  url_paths:
+    - "/payment/"
+    - "/admin/backup"
+
+# ---------------------------------------------------------------------------
+#  Rules of engagement. These are enforced, not advisory.
+# ---------------------------------------------------------------------------
+rules_of_engagement:
+  intensity: "normal"              # quiet | normal | aggressive
+  max_requests_per_second: 10
+  max_concurrent_tools: 4
+
+  # Categorical refusals. An agent that proposes one of these gets a refusal
+  # recorded in the audit log and the finding is downgraded to "theoretical".
+  forbid_destructive: true
+  forbid_denial_of_service: true
+  forbid_data_modification: true
+  forbid_persistence: true
+  forbid_social_engineering: true
+  forbid_pivot_outside_scope: true
+
+  # Authentication testing against named test accounts only. Never against
+  # real user accounts, and never as an unbounded password guessing run.
+  credential_testing:
+    allowed: false
+    accounts: []                   # e.g. [{username: "pentest1", note: "..."}]
+
+  exploitation:
+    # Agents may confirm a vulnerability, then must stop. No post-exploitation
+    # beyond what is needed to evidence the finding.
+    allowed: true
+    stop_at_proof: true
+
+# ---------------------------------------------------------------------------
+#  Hard ceilings. The orchestrator aborts the campaign when one is reached.
+# ---------------------------------------------------------------------------
+budget:
+  max_usd: 25.00
+  max_tokens: 20000000
+  max_wall_clock_minutes: 180
+
+# ---------------------------------------------------------------------------
+#  Escalation. On any `halt_on` condition the swarm stops and surfaces it.
+# ---------------------------------------------------------------------------
+contacts:
+  emergency_stop:
+    name: "Jane Doe"
+    phone: "+33 1 23 45 67 89"
+  halt_on:
+    - "service outage or degradation observed on a target"
+    - "asset discovered in scope that appears to belong to a third party"
+    - "exposure of personal data or credentials"
+
+# ---------------------------------------------------------------------------
+#  Integrity. Written by `swarmstrike engagement sign`. Do not edit by hand.
+# ---------------------------------------------------------------------------
+integrity:
+  fingerprint: null
+  signature: null
+  signed_at: null
