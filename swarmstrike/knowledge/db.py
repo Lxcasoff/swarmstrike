@@ -606,7 +606,9 @@ class KnowledgeBase:
         facts = {
             row["fact_key"]: dict(row)
             for row in self.conn.execute(
-                """SELECT fact_key, category, summary, confidence FROM fact
+                """SELECT fact_key, category, summary, confidence, negative,
+                          related_finding_id, agent
+                   FROM fact
                    WHERE campaign_id = ? AND confidence != 'deprecated'""",
                 (self.campaign_id,),
             )

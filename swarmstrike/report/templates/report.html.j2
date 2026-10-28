@@ -131,6 +131,33 @@ pre{
 .empty{color:var(--muted);font-style:italic}
 hr.sep{border:none;border-top:1px solid var(--grid);margin:36px 0 0}
 
+
+/* ── attack paths ── */
+.chain{margin:18px 0 0;border:1px solid var(--grid);border-radius:10px;overflow:hidden;
+  break-inside:avoid-page}
+.chain > header{padding:11px 15px;background:var(--page);border-bottom:1px solid var(--grid);
+  font-size:.86rem}
+.chain > header b{font-weight:650}
+.chain .steps{padding:16px 18px;display:grid;gap:0}
+.cstep{display:grid;grid-template-columns:30px 1fr;gap:13px;align-items:start}
+.cstep .mark{position:relative;text-align:center;font-size:1.05rem;line-height:1.5}
+.cstep:not(.last) .mark::after{
+  content:"";position:absolute;top:26px;left:50%;translate:-50% 0;width:2px;
+  height:calc(100% - 20px);background:var(--grid);
+}
+.cstep .what{padding-bottom:20px}
+.cstep.last .what{padding-bottom:2px}
+.cstep .kind{font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;
+  color:var(--muted);font-weight:650}
+.cstep .key{font-family:var(--mono);font-size:.73rem;color:var(--text-secondary)}
+.cstep .says{font-size:.86rem;line-height:1.55;margin-top:4px}
+.cstep .xref{font-size:.76rem;color:var(--muted);margin-top:3px}
+.chain .caveat{margin:0;padding:11px 16px;border-top:1px solid var(--grid);
+  background:color-mix(in srgb, var(--warning) 8%, transparent);font-size:.8rem;
+  color:var(--text-secondary);line-height:1.55}
+.chain .solid{margin:0;padding:10px 16px;border-top:1px solid var(--grid);
+  font-size:.78rem;color:var(--muted)}
+
 /* ── print ──────────────────────────────────────────────────────── */
 @media print{
   :root{color-scheme:light !important;
@@ -210,7 +237,7 @@ hr.sep{border:none;border-top:1px solid var(--grid);margin:36px 0 0}
   <figcaption>
     {{ counts.total }} finding(s) confirmed after review.
     {% if counts.theoretical %}
-    A further {{ counts.theoretical }} unproven weakness(es) are reported in section 5 and
+    A further {{ counts.theoretical }} unproven weakness(es) are reported in section 6 and
     are not counted here.
     {% endif %}
     Section 1.2 gives the same figures as a table.
@@ -339,7 +366,7 @@ hr.sep{border:none;border-top:1px solid var(--grid);margin:36px 0 0}
 </table>
 <p style="font-size:.82rem;color:var(--text-secondary)">
   Constraints marked forbidden were enforced technically rather than by
-  convention: matching commands were refused before execution. Section 6 records
+  convention: matching commands were refused before execution. Section 7 records
   how many refusals occurred.
 </p>
 
@@ -374,7 +401,7 @@ hr.sep{border:none;border-top:1px solid var(--grid);margin:36px 0 0}
   to {{ meta.client }} on request.{% if coverage.rejected %}
   {{ coverage.rejected }} proposed finding(s) were rejected this way.{% endif %}
   Weaknesses that were plausible but unprovable within the rules of engagement
-  appear in section 5, labelled as unproven.
+  appear in section 6, labelled as unproven.
 </p>
 
 <!-- ═══ 4. findings ═════════════════════════════════════════════ -->
@@ -430,12 +457,68 @@ hr.sep{border:none;border-top:1px solid var(--grid);margin:36px 0 0}
 <p class="empty">No findings were confirmed during this assessment.</p>
 <p>
   This is a statement about what was tested, not a guarantee of security. See
-  section 6 for coverage and the limits of this engagement.
+  section 7 for coverage and the limits of this engagement.
 </p>
 {% endif %}
 
-<!-- ═══ 5. unproven ═════════════════════════════════════════════ -->
-<h2>5. Unproven weaknesses</h2>
+<!-- ═══ 5. attack paths ══════════════════════════════════════════ -->
+<h2>5. Attack paths</h2>
+{% if chains %}
+<p>
+  The weaknesses in section 4 do not stand alone. Where one makes the next
+  reachable they form a path, and the path is what an attacker would actually
+  use. Each step below was evidenced on its own, so breaking any single link
+  breaks the whole path — which is usually why the first step is the cheapest
+  thing to fix.
+</p>
+
+{% for chain in chains %}
+<div class="chain">
+  <header>
+    <b>Path {{ chain.number }}</b> — {{ chain.length }} steps, {{ chain.describe }}
+  </header>
+  <div class="steps">
+    {% for step in chain.steps %}
+    <div class="cstep{{ ' last' if step.last else '' }}">
+      <div class="mark" aria-hidden="true">{{ step.icon }}</div>
+      <div class="what">
+        <div class="kind">{{ step.position }}. {{ step.label }}</div>
+        <div class="key">{{ step.fact_key }}</div>
+        <div class="says">{{ step.summary }}</div>
+        {% if step.finding_id %}
+        <div class="xref">
+          Reproduction steps: finding {{ step.finding_id }}{% if step.severity %}, rated {{ step.severity }}{% endif %}.
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% if not chain.fully_confirmed %}
+  <p class="caveat">
+    <strong>This path is not fully proven.</strong>
+    {% if chain.unverified_steps | length == 1 %}One step is{% else %}{{ chain.unverified_steps | length }} steps are{% endif %} unverified:
+    {% for key in chain.unverified_steps %}<code>{{ key }}</code>{{ ", " if not loop.last }}{% endfor %}.
+    Treat it as plausible rather than demonstrated, and verify those steps
+    internally before relying on the conclusion.
+  </p>
+  {% else %}
+  <p class="solid">Every step in this path was individually confirmed.</p>
+  {% endif %}
+</div>
+{% endfor %}
+{% else %}
+<p class="empty">No multi-step path was evidenced during this assessment.</p>
+<p>
+  That is a statement about what was demonstrated, not an assurance that none
+  exists. Paths are found by chaining confirmed weaknesses, so an engagement
+  that confirmed few weaknesses, or that was bounded before post-exploitation,
+  has little to chain.
+</p>
+{% endif %}
+
+<!-- ═══ 6. unproven ═════════════════════════════════════════════ -->
+<h2>6. Unproven weaknesses</h2>
 {% if theoretical %}
 <p>
   Identified but not confirmed within the rules of engagement. They are reported
@@ -465,9 +548,9 @@ hr.sep{border:none;border-top:1px solid var(--grid);margin:36px 0 0}
 {% endif %}
 
 <!-- ═══ 6. coverage & record ════════════════════════════════════ -->
-<h2>6. Coverage and engagement record</h2>
+<h2>7. Coverage and engagement record</h2>
 
-<h3>6.1 Attack surface identified</h3>
+<h3>7.1 Attack surface identified</h3>
 {% if assets_by_kind %}
 <table>
   <thead><tr><th>Asset type</th><th class="num">Count</th></tr></thead>
@@ -482,7 +565,7 @@ hr.sep{border:none;border-top:1px solid var(--grid);margin:36px 0 0}
 {% endif %}
 
 {% if services %}
-<h3>6.2 Services observed</h3>
+<h3>7.2 Services observed</h3>
 <table>
   <thead><tr><th>Host</th><th class="num">Port</th><th>Service</th><th>Product</th><th>Version</th></tr></thead>
   <tbody>
@@ -494,7 +577,7 @@ hr.sep{border:none;border-top:1px solid var(--grid);margin:36px 0 0}
 </table>
 {% endif %}
 
-<h3>6.3 Integrity of the record</h3>
+<h3>7.3 Integrity of the record</h3>
 <p>
   Every command issued during this engagement was logged before execution, in an
   append-only record where each entry is cryptographically chained to the one
@@ -516,7 +599,7 @@ hr.sep{border:none;border-top:1px solid var(--grid);margin:36px 0 0}
 </p>
 {% endif %}
 
-<h3>6.4 Remediation roadmap</h3>
+<h3>7.4 Remediation roadmap</h3>
 {% if roadmap %}
 <table>
   <thead><tr><th class="num">#</th><th>Finding</th><th>Severity</th><th>Asset</th><th>Action</th></tr></thead>
@@ -532,12 +615,12 @@ hr.sep{border:none;border-top:1px solid var(--grid);margin:36px 0 0}
 <p class="empty">No remediation actions arise from this assessment.</p>
 {% endif %}
 
-<h3>6.5 Limits of this assessment</h3>
+<h3>7.5 Limits of this assessment</h3>
 {% for paragraph in limits.split("\n\n") %}
 <p>{{ paragraph }}</p>
 {% endfor %}
 
-<h3>6.6 Statement</h3>
+<h3>7.6 Statement</h3>
 <p>
   This assessment was performed under written authorization from
   {{ meta.authorized_by.name }} ({{ meta.authorized_by.role }}), reference

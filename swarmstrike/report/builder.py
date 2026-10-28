@@ -22,10 +22,22 @@ from jinja2 import Environment, FileSystemLoader, StrictUndefined
 from ..audit import AuditLog
 from ..engagement import Engagement
 from ..knowledge import KnowledgeBase
+from .chains import prepare as prepare_chains
 from .cvss import severity_rank
 
 TEMPLATES = Path(__file__).parent / "templates"
 EVIDENCE_LIMIT = 4_000
+
+_NUMBERS = {
+    1: "one", 2: "two", 3: "three", 4: "four", 5: "five", 6: "six",
+    7: "seven", 8: "eight", 9: "nine", 10: "ten",
+}
+
+
+def _spell(value: int) -> str:
+    """Small numbers read better spelled out in a sentence an executive scans."""
+    return _NUMBERS.get(value, str(value))
+
 
 RISK_STATEMENTS = {
     "Critical": (
@@ -87,6 +99,7 @@ class ReportBuilder:
     def _compose_summary(self, counts: dict[str, int], risk: str) -> str:
         client = self.engagement.engagement.client
         surface = self.kb.summary()["assets"]
+        chains = prepare_chains(self.kb.attack_paths(), self.kb.findings("confirmed"))
 
         if not counts["total"]:
             body = (
@@ -105,6 +118,31 @@ class ReportBuilder:
                 f"surface and confirmed {counts['total']} finding(s): {headline}. "
                 f"Each was independently reviewed, challenged and adjudicated before "
                 f"inclusion in this report."
+            )
+
+        # A chain is the sentence a non-technical reader acts on: not that four
+        # weaknesses exist, but that one leads to the next and the last reaches
+        # something that matters.
+        proven = [c for c in chains if c["fully_confirmed"] and c["length"] >= 2]
+        if proven:
+            longest = proven[0]
+            steps = _spell(longest["length"])
+            if len(proven) == 1:
+                lead_in = (
+                    " More consequentially, they do not stand alone: a "
+                    f"{steps}-step path leads"
+                )
+            else:
+                lead_in = (
+                    f" More consequentially, {_spell(len(proven))} separate paths "
+                    f"chain these weaknesses together. The longest runs {steps} "
+                    f"steps,"
+                )
+            body += (
+                f"{lead_in} from {longest['steps'][0]['summary']} through to "
+                f"{longest['steps'][-1]['summary']}. Every link was evidenced on "
+                f"its own, which also means breaking any single one of them breaks "
+                f"the whole path."
             )
 
         if counts["theoretical"]:
@@ -196,7 +234,7 @@ class ReportBuilder:
             )
         if counts["theoretical"]:
             parts.append(
-                "Weaknesses in section 5 are unproven and should be verified internally "
+                "Weaknesses in section 6 are unproven and should be verified internally "
                 "before being accepted or dismissed."
             )
         return "\n\n".join(parts)
@@ -222,7 +260,10 @@ class ReportBuilder:
             kind_tally[asset["kind"]] = kind_tally.get(asset["kind"], 0) + 1
         assets_by_kind = sorted(kind_tally.items(), key=lambda pair: -pair[1])
 
+        chains = prepare_chains(self.kb.attack_paths(), confirmed)
+
         return {
+            "chains": chains,
             "meta": self.engagement.engagement,
             "window": {
                 "start": self.engagement.window.start.strftime("%Y-%m-%d %H:%M %Z"),

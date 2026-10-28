@@ -49,7 +49,7 @@ classification: "Confidential — {{ meta.client }} and authorized recipients on
 
 {% if counts.theoretical %}
 A further {{ counts.theoretical }} weakness(es) are reported as unproven in
-section 5. These were identified but could not be confirmed within the rules of
+section 6. These were identified but could not be confirmed within the rules of
 engagement, and should be verified by the {{ meta.client }} team.
 {% endif %}
 
@@ -132,7 +132,7 @@ No exclusions were defined for this engagement.
 | Social engineering | Forbidden |
 
 Constraints marked forbidden were enforced technically, not by convention:
-commands matching them were refused before execution. Section 7 records the
+commands matching them were refused before execution. Section 9 records the
 refusals that occurred.
 
 ---
@@ -161,7 +161,7 @@ the severity recorded here.
 Findings that did not survive that process are not presented as findings. They
 remain in the engagement record with the reasoning that rejected them, and are
 available to {{ meta.client }} on request. Findings that were plausible but
-could not be proven within the rules of engagement appear in section 5,
+could not be proven within the rules of engagement appear in section 6,
 labelled as unproven.
 
 {% if coverage.rejected %}
@@ -233,10 +233,56 @@ No reproduction evidence was attached to this finding.
 No findings were confirmed during this assessment.
 
 This is a statement about what was tested, not a guarantee of security. See
-section 6 for what was covered and section 8 for the limits of this engagement.
+section 7 for what was covered and section 9 for the limits of this engagement.
 {% endif %}
 
-# 5. Unproven weaknesses
+# 5. Attack paths
+
+{% if chains %}
+The weaknesses in section 4 do not stand alone. Where one of them makes the
+next reachable, they form a path, and the path is what an attacker would
+actually use. Each step below was evidenced on its own; breaking any single
+link breaks the whole path, which is why the first step is usually the
+cheapest thing to fix.
+
+{% for chain in chains %}
+## 5.{{ loop.index }} Path {{ chain.number }} — {{ chain.length }} steps, {{ chain.describe }}
+
+{% for step in chain.steps %}
+**{{ step.position }}. {{ step.icon }} {{ step.label }}** — `{{ step.fact_key }}`
+{% if step.finding_id %}
+*See finding {{ step.finding_id }}{% if step.severity %} ({{ step.severity }}){% endif %} for reproduction steps.*
+{% endif %}
+
+{{ step.summary }}
+{% if not step.last %}
+
+&nbsp;&nbsp;&nbsp;&nbsp;↓
+{% endif %}
+
+{% endfor %}
+
+{% if not chain.fully_confirmed %}
+> **This path is not fully proven.** {% if chain.unverified_steps | length == 1 %}One step is{% else %}{{ chain.unverified_steps | length }} steps are{% endif %} unverified: {% for key in chain.unverified_steps %}`{{ key }}`{{ ", " if not loop.last }}{% endfor %}.
+> Treat the path as plausible rather than demonstrated, and verify those steps
+> internally before relying on the conclusion.
+{% else %}
+Every step in this path was individually confirmed.
+{% endif %}
+
+{% endfor %}
+{% else %}
+No multi-step path was evidenced during this assessment.
+
+That is a statement about what was demonstrated, not an assurance that none
+exists. Paths are found by chaining confirmed weaknesses, so an engagement that
+confirmed few weaknesses, or that was bounded before post-exploitation, has
+little to chain.
+{% endif %}
+
+---
+
+# 6. Unproven weaknesses
 
 {% if theoretical %}
 The following were identified but could not be confirmed within the rules of
@@ -266,9 +312,9 @@ No unproven weaknesses were recorded.
 
 ---
 
-# 6. Coverage
+# 7. Coverage
 
-## 6.1 Attack surface identified
+## 7.1 Attack surface identified
 
 {% if assets_by_kind %}
 | Asset type | Count |
@@ -281,7 +327,7 @@ No assets were recorded.
 {% endif %}
 
 {% if services %}
-## 6.2 Services observed
+## 7.2 Services observed
 
 | Host | Port | Service | Product | Version |
 |---|---:|---|---|---|
@@ -293,7 +339,7 @@ No assets were recorded.
 
 ---
 
-# 7. Remediation roadmap
+# 8. Remediation roadmap
 
 {% if roadmap %}
 | Priority | Finding | Severity | Asset | Action |
@@ -307,9 +353,9 @@ No remediation actions arise from this assessment.
 
 ---
 
-# 8. Engagement record and limits
+# 9. Engagement record and limits
 
-## 8.1 Integrity of the record
+## 9.1 Integrity of the record
 
 Every command issued during this engagement was logged before execution, in an
 append-only record where each entry is cryptographically chained to the one
@@ -329,11 +375,11 @@ cases where the assessment attempted something the engagement contract did not
 permit, and was prevented. The full list is available on request.
 {% endif %}
 
-## 8.2 Limits of this assessment
+## 9.2 Limits of this assessment
 
 {{ limits }}
 
-## 8.3 Statement
+## 9.3 Statement
 
 This assessment was performed under written authorization from
 {{ meta.authorized_by.name }} ({{ meta.authorized_by.role }}), reference
