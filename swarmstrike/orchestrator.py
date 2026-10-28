@@ -31,6 +31,7 @@ from claude_agent_sdk import (
 
 from . import engagement as contract
 from .agents.roster import SPECIALIST_NAMES, build_agents
+from .approval import ApprovalGate, AutoDenyGate
 from .audit import AuditLog
 from .budget import BudgetExceeded, BudgetTracker
 from .debate.peer_review import DebateEngine, Outcome
@@ -193,7 +194,12 @@ EventSink = Callable[[str, dict[str, Any]], None]
 
 
 class Campaign:
-    def __init__(self, config: CampaignConfig, on_event: EventSink | None = None) -> None:
+    def __init__(
+        self,
+        config: CampaignConfig,
+        on_event: EventSink | None = None,
+        approval: ApprovalGate | None = None,
+    ) -> None:
         self.config = config
         self._emit = on_event or (lambda _kind, _payload: None)
 
@@ -214,6 +220,14 @@ class Campaign:
         self.budget = BudgetTracker(self.engagement.budget)
 
         from .scope import ScopeGuard
+        from .tools.recipes import load_recipes
+
+        self.book = load_recipes()
+        if self.book.errors:
+            # A malformed recipe is a configuration problem, not a campaign one:
+            # report it and run with the rest rather than refusing to start.
+            for name, detail in self.book.errors.items():
+                self._emit("recipe.invalid", file=name, detail=detail)
 
         self.guard = ScopeGuard(self.engagement)
         self.executor = ToolExecutor(
@@ -226,6 +240,11 @@ class Campaign:
             max_concurrent=self.engagement.rules_of_engagement.max_concurrent_tools,
             min_interval_s=_interval_for(self.engagement.rules_of_engagement.intensity),
             on_event=self._emit,
+            approval=approval or AutoDenyGate(),
+            allowed_binaries=frozenset(
+                self.book.binaries()
+                | set(self.engagement.rules_of_engagement.arbitrary_execution.extra_binaries)
+            ),
         )
 
         self.context = build_context(self.engagement)
@@ -245,6 +264,7 @@ class Campaign:
             executor=self.executor,
             kb=self.kb,
             killswitch=self.killswitch,
+            book=self.book,
             on_event=self._emit,
         )
         self._servers = {

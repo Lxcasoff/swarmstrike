@@ -98,6 +98,71 @@ rules_of_engagement:
     allowed: true
     stop_at_proof: true
 
+  # -------------------------------------------------------------------------
+  #  Red team phases. All off unless this is genuinely a red team engagement.
+  #
+  #  `enabled` is the master switch and every phase also needs its own flag,
+  #  so turning red team mode on does not silently turn everything on. Clients
+  #  authorize these separately: a scope letter covering privilege escalation
+  #  very often does not cover persistence.
+  # -------------------------------------------------------------------------
+  red_team:
+    enabled: false
+
+    post_exploitation: false        # enumeration from an established foothold
+    privilege_escalation: false
+    lateral_movement: false
+    persistence: false             # also needs forbid_persistence set to false
+    evasion: false                 # exercising the client's detection capability
+
+    # Proving an exfiltration path with planted canary data. Never the client's
+    # real records: moving those to prove the path creates the breach the test
+    # exists to prevent.
+    exfiltration_simulation: false
+    canary_only: true
+
+    # Anything established during the engagement must be removed, and the
+    # report has to account for it.
+    cleanup_required: true
+
+    # Detection testing is only worth doing if someone is watching and the
+    # findings can be correlated with their alerts afterwards.
+    notify_defenders: false
+    deconfliction_contact: ""
+
+  # -------------------------------------------------------------------------
+  #  Commands the recipe set does not cover. Three tiers, in decreasing order
+  #  of what can be guaranteed:
+  #
+  #    structured_commands  a binary plus an argument vector. No shell, so the
+  #                         scope guard reads the targets exactly as it does
+  #                         for a recipe. Nothing is given up; on by default.
+  #    pipelines            several structured commands piped between
+  #                         containers. Later stages are limited to filters
+  #                         that cannot execute, so there is still no shell.
+  #    shell / scripts      cannot be checked statically — `;`, `|` and
+  #                         `$(...)` mean one approved-looking string can do
+  #                         anything. The guarantee becomes contained,
+  #                         approved and logged rather than enforced.
+  #
+  #  A human approves every use of the third tier and that is not configurable:
+  #  an approval an operator can switch off is not a control, and an unattended
+  #  campaign that approved its own shell commands would only look governed.
+  #  With the gate unattended the agents are told to use a structured command
+  #  instead, so a campaign keeps running without the shell.
+  # -------------------------------------------------------------------------
+  arbitrary_execution:
+    structured_commands: true
+    pipelines: false
+    shell: false
+    scripts: false
+
+    # Binaries agents may invoke beyond those the recipes already name.
+    extra_binaries: []
+
+    # How long an operator has to decide before the action is refused.
+    approval_timeout_s: 300
+
 # ---------------------------------------------------------------------------
 #  Hard ceilings. The orchestrator aborts the campaign when one is reached.
 # ---------------------------------------------------------------------------
