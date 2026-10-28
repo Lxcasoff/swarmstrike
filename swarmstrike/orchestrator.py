@@ -273,7 +273,11 @@ class Campaign:
         }
 
     def _agents(self) -> dict[str, Any]:
-        return build_agents(context=self.context, domains=self.config.domains)
+        return build_agents(
+            context=self.context,
+            domains=self.config.domains,
+            engagement=self.engagement,
+        )
 
     # ------------------------------------------------------------------
     async def run(self) -> CampaignResult:
