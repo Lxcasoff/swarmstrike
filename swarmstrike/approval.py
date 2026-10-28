@@ -111,7 +111,12 @@ class QueueApprovalGate:
 
     def __init__(self, timeout_s: float = 300.0) -> None:
         self.timeout_s = timeout_s
-        self._waiting: dict[str, asyncio.Future[Verdict]] = {}
+        # The loop is stored with the future because the decision may arrive on
+        # a different thread from the one the agent is waiting on. Completing a
+        # future from another thread does not wake its loop, so the agent would
+        # hang until the timeout — which looks exactly like an operator who
+        # never answered.
+        self._waiting: dict[str, tuple[asyncio.AbstractEventLoop, asyncio.Future[Verdict]]] = {}
         self._requests: dict[str, ApprovalRequest] = {}
         self._decided: list[tuple[ApprovalRequest, Verdict]] = []
         self.on_request: list[object] = []   # callables, notified on arrival
@@ -122,13 +127,34 @@ class QueueApprovalGate:
 
     def resolve(self, request_id: str, decision: Decision, reason: str = "",
                 decided_by: str = "operator") -> bool:
-        """Record an operator's decision. False if it was already decided."""
-        future = self._waiting.pop(request_id, None)
+        """Record a decision. False if it was already decided or has gone.
+
+        Safe to call from any thread.
+        """
+        entry = self._waiting.pop(request_id, None)
         req = self._requests.pop(request_id, None)
-        if future is None or future.done():
+        if entry is None:
             return False
+
+        loop, future = entry
+        if future.done():
+            return False
+
         verdict = Verdict(decision, reason, decided_by)
-        future.set_result(verdict)
+        try:
+            running = asyncio.get_running_loop()
+        except RuntimeError:
+            running = None
+
+        if running is loop:
+            future.set_result(verdict)
+        else:
+            try:
+                loop.call_soon_threadsafe(future.set_result, verdict)
+            except RuntimeError:
+                # The waiting loop has closed; nothing is listening any more.
+                return False
+
         if req is not None:
             self._decided.append((req, verdict))
         return True
@@ -140,7 +166,7 @@ class QueueApprovalGate:
     async def request(self, req: ApprovalRequest) -> Verdict:
         loop = asyncio.get_running_loop()
         future: asyncio.Future[Verdict] = loop.create_future()
-        self._waiting[req.id] = future
+        self._waiting[req.id] = (loop, future)
         self._requests[req.id] = req
 
         for notify in self.on_request:

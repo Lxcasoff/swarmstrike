@@ -198,8 +198,21 @@ def run(
 
         raise typer.Exit(run_with_tui(config))
 
+    # Without the live view, an approval prompt goes to this terminal. With
+    # no terminal attached the gate refuses rather than blocking, so a detached
+    # run degrades to "no shell" instead of hanging.
+    from .approval import ConsoleApprovalGate
+
+    gate = ConsoleApprovalGate(
+        timeout_s=float(
+            contract.load(engagement_path).rules_of_engagement
+            .arbitrary_execution.approval_timeout_s
+        )
+        if engagement_path.is_file() else 300.0
+    )
+
     try:
-        campaign = Campaign(config, on_event=_print_event)
+        campaign = Campaign(config, on_event=_print_event, approval=gate)
     except ContractError as exc:
         _fail(
             f"{exc}\n\n"
@@ -244,6 +257,16 @@ def _print_event(kind: str, payload: dict) -> None:
             f"  [{colour}]{payload['verdict']:<12}[/] {payload['finding_id']} "
             f"[dim]{payload['severity']} · confidence {payload['confidence']:.0%}[/]"
         )
+    elif kind == "approval.requested":
+        console.print(
+            f"[bold yellow]✋ {payload.get('agent', '')} is waiting for approval[/] "
+            f"[dim]{payload.get('summary', '')}[/]"
+        )
+    elif kind == "approval.decided":
+        marker = "[green]allowed[/]" if payload.get("decision") == "allow" else "[red]refused[/]"
+        console.print(f"  approval {marker} [dim]{payload.get('reason', '')}[/]")
+    elif kind == "recipe.invalid":
+        err.print(f"[yellow]⚠ recipe {payload['file']} could not be loaded:[/] {payload['detail'][:160]}")
     elif kind == "spend":
         console.print(f"[dim]  spend {payload['status']}[/]")
     elif kind in {"campaign.halted", "budget.exhausted", "window.closed", "review.stopped"}:

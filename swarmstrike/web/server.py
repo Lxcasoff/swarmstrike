@@ -26,6 +26,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from .. import engagement as contract
+from ..approval import Decision, QueueApprovalGate
 from ..agents.roster import AGENT_FACES, SPECIALIST_NAMES, face
 from ..engagement import ContractError
 from ..orchestrator import Campaign, CampaignConfig
@@ -59,6 +60,11 @@ class Session:
     status: str = "starting"
     agents: dict[str, dict[str, Any]] = field(default_factory=dict)
     queue: asyncio.Queue[dict[str, Any]] = field(default_factory=asyncio.Queue)
+
+    # Where this campaign's shell and script requests wait for a decision.
+    # One per session: a decision made in one campaign must not release an
+    # action waiting in another.
+    gate: QueueApprovalGate = field(default_factory=QueueApprovalGate)
 
     # ------------------------------------------------------------------
     def record(self, kind: str, payload: dict[str, Any]) -> None:
@@ -108,6 +114,17 @@ class Session:
             state["findings"] += 1
             state["state"] = "found"
             state["detail"] = f"{payload.get('finding_id', '')} {payload.get('title', '')}"[:120]
+        elif kind == "approval.requested":
+            # An agent in this state is stopped, waiting on a person.
+            state["state"] = "waiting"
+            state["detail"] = f"waiting for approval: {payload.get('summary', '')}"[:140]
+        elif kind == "approval.decided":
+            allowed = payload.get("decision") == "allow"
+            state["state"] = "working" if allowed else "blocked"
+            state["detail"] = (
+                f"approval {payload.get('decision', '')}"
+                + (f" — {payload.get('reason', '')}" if payload.get("reason") else "")
+            )[:140]
         elif kind == "agent.review.start":
             state["state"] = "thinking"
             state["detail"] = "reviewing a finding"
@@ -144,6 +161,12 @@ class Session:
             "summary": summary,
             "agents": list(self.agents.values()),
             "directory": str(campaign.dir),
+            "approvals": [r.as_dict() for r in self.gate.pending()],
+            "approval_timeout_s": self.gate.timeout_s,
+            "shell_enabled": (
+                campaign.engagement.rules_of_engagement.arbitrary_execution.shell
+                or campaign.engagement.rules_of_engagement.arbitrary_execution.scripts
+            ),
         }
 
 
@@ -172,8 +195,13 @@ class Dashboard:
         )
 
         session_id = uuid.uuid4().hex[:12]
+        gate = QueueApprovalGate()
         try:
-            campaign = Campaign(config, on_event=lambda kind, payload: session.record(kind, payload))
+            campaign = Campaign(
+                config,
+                on_event=lambda kind, payload: session.record(kind, payload),
+                approval=gate,
+            )
         except ContractError as exc:
             raise HTTPException(
                 400,
@@ -183,8 +211,14 @@ class Dashboard:
         except (FileNotFoundError, OSError) as exc:
             raise HTTPException(400, str(exc)) from exc
 
-        session = Session(id=session_id, campaign=campaign)
+        session = Session(id=session_id, campaign=campaign, gate=gate)
         self.sessions[session_id] = session
+
+        # The contract sets how long an operator has before an unapproved
+        # action is refused.
+        gate.timeout_s = float(
+            campaign.engagement.rules_of_engagement.arbitrary_execution.approval_timeout_s
+        )
 
         # Seed the roster so the UI can draw every agent before any of them move.
         for name in ("lead", *(request.domains or SPECIALIST_NAMES), "skeptic", "arbiter", "reporter"):
@@ -310,6 +344,57 @@ def create_app() -> FastAPI:
     @app.get("/api/campaigns/{session_id}/events")
     async def events(session_id: str, since: int = 0) -> list[dict[str, Any]]:
         return dashboard.get(session_id).history[since:]
+
+
+    @app.get("/api/campaigns/{session_id}/approvals")
+    async def list_approvals(session_id: str) -> dict[str, Any]:
+        """What is waiting on a human, and what was already decided."""
+        session = dashboard.get(session_id)
+        return {
+            "pending": [r.as_dict() for r in session.gate.pending()],
+            "timeout_s": session.gate.timeout_s,
+            "decided": [
+                {**request.as_dict(), "decision": verdict.decision.value,
+                 "reason": verdict.reason, "decided_by": verdict.decided_by}
+                for request, verdict in session.gate.history()
+            ],
+        }
+
+    @app.post("/api/campaigns/{session_id}/approvals/{request_id}")
+    async def decide_approval(
+        session_id: str, request_id: str, body: dict[str, str] | None = None
+    ) -> dict[str, Any]:
+        """Allow or deny one waiting action.
+
+        The dashboard has no identity of its own, so the decision is recorded
+        as having been made at the dashboard rather than by a named person. On
+        a shared host, put authentication in front of this.
+        """
+        session = dashboard.get(session_id)
+        payload = body or {}
+        raw = (payload.get("decision") or "").strip().lower()
+        if raw not in {"allow", "deny"}:
+            raise HTTPException(400, "decision must be 'allow' or 'deny'")
+
+        resolved = session.gate.resolve(
+            request_id,
+            Decision.ALLOW if raw == "allow" else Decision.DENY,
+            reason=(payload.get("reason") or "").strip(),
+            decided_by="operator (dashboard)",
+        )
+        if not resolved:
+            # Either it was already decided or it timed out and was refused.
+            raise HTTPException(
+                409,
+                "that request is no longer waiting — it was already decided, or it "
+                "timed out and was refused.",
+            )
+
+        session.record("approval.resolved", {
+            "request_id": request_id, "decision": raw,
+            "reason": payload.get("reason", ""),
+        })
+        return {"request_id": request_id, "decision": raw}
 
     @app.get("/api/campaigns/{session_id}/report")
     async def report(session_id: str) -> HTMLResponse:

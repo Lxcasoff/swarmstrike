@@ -329,6 +329,69 @@ pre{margin:0;padding:12px 14px;border-radius:10px;background:#070b16;border:1px 
 .x{background:none;border:none;color:var(--ink-faint);font-size:1.3rem;line-height:1;padding:2px 7px}
 .x:hover{color:var(--ink)}
 
+
+/* ── state: waiting — blocked on a human decision ── */
+.agent[data-state="waiting"] .orb{animation:float 6s ease-in-out infinite}
+.agent[data-state="waiting"] .ring{
+  border-color:#fbbf24cc;border-style:solid;
+  animation:waitPulse 1.6s ease-in-out infinite;
+  box-shadow:0 0 20px #fbbf2455;
+}
+@keyframes waitPulse{0%,100%{opacity:.4;inset:-9px}50%{opacity:1;inset:-14px}}
+.agent[data-state="waiting"] .ball{filter:saturate(.6)}
+.agent[data-state="waiting"] .stage::after{
+  content:"\23F3";position:absolute;top:-4px;right:-2px;font-size:15px;
+  animation:tick 2s steps(2) infinite;
+}
+@keyframes tick{0%,49%{transform:rotate(0)}50%,100%{transform:rotate(180deg)}}
+
+/* ── approval queue ── */
+#approvals{margin:0 0 18px;display:grid;gap:12px}
+#approvals:empty{display:none}
+.appr{
+  border:1px solid #fbbf2455;border-left:3px solid var(--warn);border-radius:var(--radius);
+  background:linear-gradient(180deg,#fbbf240e,var(--panel));backdrop-filter:blur(10px);
+  overflow:hidden;animation:apprIn .34s cubic-bezier(.22,1,.36,1);
+}
+@keyframes apprIn{from{opacity:0;transform:translateY(-8px) scale(.99)}to{opacity:1;transform:none}}
+.appr header{display:flex;align-items:center;gap:11px;padding:12px 16px;
+  border-bottom:1px solid var(--line-soft);flex-wrap:wrap}
+.appr header .who{font-size:.86rem;font-weight:650}
+.appr header .kind{
+  font-size:.64rem;text-transform:uppercase;letter-spacing:.09em;padding:3px 9px;
+  border-radius:999px;background:#fbbf2420;color:#fcd77f;font-weight:650;
+}
+.appr header .spacer{flex:1}
+.appr header .left{font-size:.74rem;color:var(--ink-dim);font-variant-numeric:tabular-nums}
+.appr header .left.urgent{color:#ffb4b4}
+.appr .bdy{padding:13px 16px;display:grid;gap:12px}
+.appr .why{font-size:.82rem;color:var(--ink-dim);line-height:1.55}
+.appr .why b{color:var(--ink)}
+.appr pre{
+  margin:0;padding:12px 14px;border-radius:9px;background:#070b16;
+  border:1px solid var(--line);overflow:auto;max-height:200px;
+  font-family:var(--mono);font-size:.74rem;line-height:1.55;color:#ffe9b0;
+  white-space:pre-wrap;word-break:break-word;
+}
+.appr .notes{margin:0;padding-left:18px;font-size:.74rem;color:var(--ink-faint);line-height:1.6}
+.appr .notes li::marker{color:var(--warn)}
+.appr .act{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.appr .act input{
+  flex:1;min-width:170px;padding:9px 12px;border-radius:9px;border:1px solid var(--line);
+  background:#0b1020;color:var(--ink);font-family:inherit;font-size:.8rem;
+}
+.appr .act input:focus{outline:none;border-color:var(--warn);box-shadow:0 0 0 3px #fbbf2422}
+.btn-allow{border:none;background:linear-gradient(145deg,#1f9d57,#11814a);color:#fff;
+  padding:9px 18px;font-weight:600;box-shadow:0 8px 18px -8px #11814a99}
+.btn-allow:hover{filter:brightness(1.12)}
+.btn-deny{border:1px solid #f8717148;background:#2a1220;color:#ffb4b4;padding:9px 18px;font-weight:600}
+.btn-deny:hover{background:#3a1526;border-color:#f8717180}
+.appr.resolving{opacity:.5;pointer-events:none}
+.appr .guarantee{
+  font-size:.72rem;color:var(--ink-faint);line-height:1.55;padding:9px 12px;
+  border-radius:8px;background:#ffffff06;border:1px solid var(--line-soft);
+}
+
 @media (max-width:1080px){.grid{grid-template-columns:1fr}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
@@ -391,6 +454,8 @@ pre{margin:0;padding:12px 14px;border-radius:10px;background:#070b16;border:1px 
 
   <!-- live --------------------------------------------------------- -->
   <main id="live" hidden>
+    <section id="approvals"></section>
+
     <div class="grid">
       <section class="card">
         <h2>War room <span class="count" id="roomCount"></span></h2>
@@ -428,7 +493,8 @@ const el = (tag, cls, text) => { const n = document.createElement(tag);
   if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
 
 const state = { session:null, faces:{}, specialists:[], picks:new Set(),
-                agents:new Map(), findings:new Map(), socket:null, events:0 };
+                agents:new Map(), findings:new Map(), socket:null, events:0,
+                approvals:new Map(), approvalTimeout:300 };
 
 /* ── event presentation ─────────────────────────────────────────── */
 const EV = {
@@ -439,6 +505,8 @@ const EV = {
   "agent.asset":      ["📍",""],     "agent.finding":   ["🎯","warn"],
   "agent.review.start":["🔍",""],    "agent.review.end":["🗳",""],
   "ruling":           ["⚖","warn"],  "spend":           ["💳",""],
+  "approval.requested":["✋","warn"], "approval.decided":["🗳",""],
+  "approval.resolved":["✓","good"],
   "campaign.halted":  ["🛑","bad"],  "budget.exhausted":["💸","warn"],
   "window.closed":    ["🕒","warn"], "review.stopped":  ["⏸","warn"],
   "report.written":   ["📄","good"], "report.failed":   ["✗","bad"],
@@ -461,6 +529,9 @@ function describe(kind, d) {
     case "agent.review.start":return `${d.agent} is reviewing`;
     case "agent.review.end":  return `${d.agent} → ${d.stance}`;
     case "ruling":            return `${d.finding_id} ${d.verdict} · ${d.severity} · ${Math.round(d.confidence*100)}%`;
+    case "approval.requested":return `${d.agent} is waiting for approval: ${d.summary||""}`;
+    case "approval.decided":  return `${d.request_id||""} ${d.decision} (${d.decided_by||""}) ${d.reason||""}`;
+    case "approval.resolved": return `${d.request_id||""} ${d.decision}`;
     case "spend":             return d.status;
     case "report.written":    return `report written to ${d.path}`;
     case "report.failed":     return d.detail;
@@ -553,6 +624,13 @@ function applyToAgent(kind, d) {
   } else if (kind === "agent.finding") {
     a.state = "found"; a.findings++; a.detail = `${d.finding_id} ${d.title||""}`.slice(0,120);
     setTimeout(() => { if (a.state === "found") { a.state = "idle"; touchAgent(a); } }, 1400);
+  } else if (kind === "approval.requested") {
+    a.state = "waiting"; a.detail = `waiting for approval: ${d.summary || ""}`.slice(0, 140);
+  } else if (kind === "approval.decided") {
+    const ok = d.decision === "allow";
+    a.state = ok ? "working" : "blocked";
+    a.detail = `approval ${d.decision}${d.reason ? " — " + d.reason : ""}`.slice(0, 140);
+    if (!ok) setTimeout(() => { if (a.state === "blocked") { a.state = "idle"; touchAgent(a); } }, 2600);
   } else if (kind === "agent.review.start") {
     a.state = "thinking"; a.detail = "reviewing a finding";
   } else if (kind === "agent.review.end") {
@@ -745,6 +823,134 @@ function closeDrawer() {
   $("#scrim").classList.remove("open");
 }
 
+
+/* ── approval queue ──────────────────────────────────────────────────
+   A pending request means an agent is stopped, waiting on a person. It is
+   rendered above everything else for that reason, with the exact command and
+   what the static checks could and could not establish about it. */
+function renderApprovals() {
+  const host = $("#approvals");
+  const list = [...state.approvals.values()]
+    .sort((a, b) => (a.created_at || "").localeCompare(b.created_at || ""));
+
+  if (!list.length) { host.replaceChildren(); return; }
+
+  host.replaceChildren(...list.map((req) => {
+    const card = el("div", "appr");
+    card.dataset.id = req.id;
+
+    const head = el("header");
+    head.append(
+      Object.assign(el("span", "kind"), {textContent: req.kind || "shell"}),
+      Object.assign(el("span", "who"), {textContent: `${req.agent} is waiting for approval`}),
+      el("div", "spacer"),
+      Object.assign(el("span", "left"), {dataset: {created: req.created_at || ""}}),
+    );
+
+    const body = el("div", "bdy");
+
+    const why = el("div", "why");
+    why.innerHTML = req.rationale
+      ? `<b>Why it says it needs this:</b> ${esc(req.rationale)}`
+      : `<b>No rationale was given.</b> An agent that cannot say why a structured `
+        + `command will not do is usually reaching for a shell out of habit.`;
+    body.append(why);
+
+    body.append(Object.assign(el("pre"), {textContent: req.detail || ""}));
+
+    if ((req.risk_notes || []).length) {
+      const notes = el("ul", "notes");
+      for (const note of req.risk_notes) notes.append(el("li", null, note));
+      body.append(notes);
+    }
+
+    body.append(Object.assign(el("div", "guarantee"), {textContent:
+      "Approving this runs it inside the campaign container with the engagement's "
+      + "network and limits, and records it in the audit chain. It is not "
+      + "scope-enforced: a shell command can reach a target this check could not see."
+    }));
+
+    const act = el("div", "act");
+    const reason = el("input");
+    reason.type = "text";
+    reason.placeholder = "reason (recorded in the audit log)";
+    const allow = Object.assign(el("button", "btn-allow"), {textContent: "Allow"});
+    const deny = Object.assign(el("button", "btn-deny"), {textContent: "Deny"});
+    allow.onclick = () => decideApproval(req.id, "allow", reason.value);
+    deny.onclick = () => decideApproval(req.id, "deny", reason.value);
+    act.append(reason, allow, deny);
+    body.append(act);
+
+    card.append(head, body);
+    return card;
+  }));
+
+  tickApprovals();
+}
+
+/* Counts down to the contract's timeout, because an action nobody decides on
+   is refused rather than left hanging. */
+function tickApprovals() {
+  for (const card of document.querySelectorAll(".appr")) {
+    const slot = card.querySelector(".left");
+    const created = slot?.dataset.created;
+    if (!created) continue;
+    const left = Math.round(
+      state.approvalTimeout - (Date.now() - new Date(created).getTime()) / 1000
+    );
+    if (left <= 0) {
+      slot.textContent = "expired — refused";
+      slot.classList.add("urgent");
+      continue;
+    }
+    const mins = Math.floor(left / 60), secs = String(left % 60).padStart(2, "0");
+    slot.textContent = `${mins}:${secs} to decide`;
+    slot.classList.toggle("urgent", left < 60);
+  }
+}
+
+async function decideApproval(id, decision, reason) {
+  const card = document.querySelector(`.appr[data-id="${CSS.escape(id)}"]`);
+  if (card) card.classList.add("resolving");
+
+  if (state.demo) {
+    state.approvals.delete(id);
+    renderApprovals();
+    pushEvent({kind: "approval.decided", data: {
+      request_id: id, decision, reason: reason || "", decided_by: "operator (demo)",
+      agent: "web",
+    }});
+    applyToAgent("approval.decided", {agent: "web", decision, reason});
+    return;
+  }
+
+  try {
+    const res = await fetch(`/api/campaigns/${state.session}/approvals/${id}`, {
+      method: "POST", headers: {"content-type": "application/json"},
+      body: JSON.stringify({decision, reason: reason || ""}),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({detail: "could not record the decision"}));
+      pushEvent({kind: "approval.resolved", data: {request_id: id, decision: err.detail}});
+    }
+  } catch {
+    if (card) card.classList.remove("resolving");
+    return;
+  }
+  state.approvals.delete(id);
+  renderApprovals();
+}
+
+async function refreshApprovals() {
+  if (!state.session || state.demo) return;
+  try {
+    const data = await (await fetch(`/api/campaigns/${state.session}/approvals`)).json();
+    state.approvalTimeout = data.timeout_s || state.approvalTimeout;
+    state.approvals = new Map((data.pending || []).map((r) => [r.id, r]));
+    renderApprovals();
+  } catch {}
+}
+
 /* ── socket ─────────────────────────────────────────────────────── */
 function connect(sessionId) {
   const proto = location.protocol === "https:" ? "wss" : "ws";
@@ -760,13 +966,23 @@ function connect(sessionId) {
     if (ev.kind === "snapshot") {
       const s = ev.data;
       state.agents = new Map((s.agents || []).map((a) => [a.agent, a]));
-      renderRoom(); renderHeader(s);
+      state.approvalTimeout = s.approval_timeout_s || state.approvalTimeout;
+      state.approvals = new Map((s.approvals || []).map((r) => [r.id, r]));
+      renderRoom(); renderHeader(s); renderApprovals();
       return;
     }
     if (ev.kind === "error") { pushEvent(ev); return; }
 
     pushEvent(ev);
     applyToAgent(ev.kind, ev.data || {});
+
+    if (ev.kind === "approval.requested") {
+      state.approvals.set(ev.data.id, ev.data);
+      renderApprovals();
+    } else if (ev.kind === "approval.decided" || ev.kind === "approval.resolved") {
+      state.approvals.delete(ev.data.request_id);
+      renderApprovals();
+    }
 
     if (["agent.finding","ruling","campaign.done","phase"].includes(ev.kind)) refreshFindings();
     if (["spend","ruling","agent.asset","agent.tool.end","campaign.done",
@@ -990,6 +1206,15 @@ const DEMO_SCRIPT = [
   [12400,"agent.tool.start",{agent:"network", tool:"nmap", targets:["8.8.8.8"]}],
   [12500,"agent.refused",  {agent:"network", tool:"nmap", rule:"scope.miss", reason:"8.8.8.8 is not in any in-scope range"}],
   [13200,"lead",           {text:"That target was outside the contract and was refused before it ran. Staying inside the authorized ranges."}],
+  [13800,"approval.requested",{id:"demo-appr-1", agent:"web", kind:"shell",
+      summary:"web wants to run sh: for p in 8080 8443 9000; do curl -s -o /dev/null -w \"$p %{http_code}\\n\" https://admin.example.pf:$p/; done",
+      detail:"for p in 8080 8443 9000; do\n  curl -sS -o /dev/null -w \"$p %{http_code}\\n\" https://admin.example.pf:$p/\ndone",
+      rationale:"Three ports need the same probe and the result only makes sense compared side by side. run_tool would be three separate calls with no shared output.",
+      risk_notes:[
+        "names in-scope target admin.example.pf",
+        "a shell command cannot be checked statically: this runs contained, approved and logged, not scope-enforced"
+      ],
+      created_at:new Date().toISOString()}],
   [14000,"agent.finding",  {agent:"recon", finding_id:"F-004", title:"Server header discloses version", severity:"none"}],
   [14800,"agent.finding",  {agent:"web", finding_id:"F-003", title:"Possible SQL injection in search parameter", severity:"high"}],
   [15600,"lead",           {text:"Surface covered to the depth the budget allows. Handing the proposed findings to review."}],
@@ -1037,6 +1262,7 @@ function runDemo() {
   state.session = "demo";
   state.demoAssets = new Set();
   state.demoCommands = 0;
+  state.approvalTimeout = 300;
   $("#launch").hidden = true;
   $("#live").hidden = false;
   $("#subtitle").textContent = "demonstration — no target is contacted";
@@ -1075,9 +1301,18 @@ function runDemo() {
     }, at);
   }
 
+  // If nobody touches the demo card, resolve it so the loop keeps moving.
+  // A real campaign does the opposite: an undecided action is refused.
+  setTimeout(() => {
+    if (state.demo && state.approvals.has("demo-appr-1")) {
+      decideApproval("demo-appr-1", "allow", "approved in the demo after 11s");
+    }
+  }, 24800);
+
   // Loop so the view can be left running on a screen.
   setTimeout(() => {
     state.findings.clear(); state.agents.clear(); state.events = 0;
+    state.approvals.clear(); renderApprovals();
     $("#feed").replaceChildren(); runDemo();
   }, 38000);
 }
@@ -1100,6 +1335,9 @@ $("#haltBtn").onclick = async () => {
 const DEMO = new URLSearchParams(location.search).has("demo");
 loadRoster().then(() => { if (DEMO) runDemo(); }).catch(() => { if (DEMO) runDemo(); });
 setInterval(() => { if (state.session && !state.demo) refreshHeader(); }, 5000);
+setInterval(tickApprovals, 1000);
+// A missed websocket frame must not leave an agent blocked invisibly.
+setInterval(() => { if (state.session && !state.demo) refreshApprovals(); }, 10000);
 </script>
 </body>
 </html>
