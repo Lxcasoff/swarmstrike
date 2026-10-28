@@ -226,11 +226,48 @@ Plus three roles that never touch a target:
 | `arbiter` | Rules on contested findings and sets the severity the client sees |
 | `reporter` | Writes the deliverable from the confirmed record |
 
-A lead agent plans the engagement and delegates to the specialists, because
-deciding what to test next given what was just found is genuinely a judgement
-call. Everything around that decision — the contract check, the budget ceiling,
-the challenge round, the report assembly — runs in code, so it happens whether
-or not a model remembers to ask for it.
+A lead agent decides what gets tested next, because that is genuinely a
+judgement call. Everything around the decision — the contract check, the budget
+ceiling, the challenge round, the report assembly — runs in code, so it happens
+whether or not a model remembers to ask for it.
+
+### The campaign is a search, not a playbook
+
+An engagement does not have a fixed shape. What to do next depends on what is
+already established: a host nobody has fingerprinted, a credential that opens
+something, a dead end that rules a whole direction out. So the lead is asked
+the same question each round — given the facts on the board, what is the most
+useful thing to do now — and the campaign ends when it says there is nothing
+left worth doing, or a ceiling is reached.
+
+```
+          ┌──────────────────────────────────────┐
+          │  the board: facts, dead ends, paths  │
+          └───────────────┬──────────────────────┘
+                          │  what is most useful now?
+                   ┌──────▼───────┐
+                   │     lead     │
+                   └──────┬───────┘
+          ┌───────────────┼───────────────┐
+      ┌───▼────┐     ┌────▼───┐      ┌────▼───┐   assigned in parallel,
+      │ recon  │     │  web   │      │   ad   │   claimed so no two
+      └───┬────┘     └────┬───┘      └────┬───┘   agents duplicate work
+          └───────────────┼───────────────┘
+                          │  facts, findings, dead ends
+                          └──────────────► back to the board
+```
+
+The approach follows CyberStrikeAI's `pentest-agent-os` framing, which models
+penetration testing as search rather than a sequence of phases. What is added
+here is that the loop runs in code: the round structure, the duplicate-work
+check, the budget check and the stopping condition are not things the lead can
+forget to do, because the lead is not the thing doing them.
+
+Two stopping conditions beyond the obvious ones. Assigning a unit of work that
+is already claimed is refused by the database rather than by the prompt, since
+the lead sees the assigned list but a race between rounds would still slip
+past it. And two consecutive rounds that establish nothing new end the search —
+that is either convergence or a lead going in circles, and both mean stop.
 
 Limit the roster when you only need part of it:
 

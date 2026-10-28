@@ -22,16 +22,8 @@ from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from claude_agent_sdk import (
-    AssistantMessage,
-    ClaudeAgentOptions,
-    ClaudeSDKClient,
-    ResultMessage,
-    TextBlock,
-)
-
 from . import engagement as contract
-from .agents.roster import SPECIALIST_NAMES, build_agents
+from .agents.roster import CHALLENGE_NAMES, SPECIALIST_NAMES, build_agents
 from .approval import ApprovalGate, AutoDenyGate
 from .audit import AuditLog
 from .budget import BudgetExceeded, BudgetTracker
@@ -39,11 +31,9 @@ from .debate.peer_review import DebateEngine, Outcome
 from .engagement import Engagement
 from .killswitch import Halted, KillSwitch
 from .knowledge import KnowledgeBase
-from .models import Role, effort_for, model_for
+from .search import StateSpaceSearch
 from .tools.catalog import (
     ANALYSIS_TOOLS,
-    KNOWLEDGE_TOOLS,
-    TOOLBOX_TOOLS,
     CampaignContext,
     build_knowledge_server,
     build_toolbox_server,
@@ -52,42 +42,48 @@ from .tools.executor import ContainerPolicy, ToolExecutor
 
 ORCHESTRATOR_PROMPT = """
 You lead this penetration testing engagement. You do not run tools against the
-target yourself — you decide what gets tested, by whom, and in what order, and
-you delegate that work to the specialists available to you.
+target yourself — you decide what gets tested next, and you delegate it.
 
-Run the engagement in waves, and let each wave inform the next:
+You are asked the same question each round: **given the facts on the board,
+what is the most useful thing to do now?** Answer it from the board, not from
+what a penetration test usually does next. There is no fixed sequence here. If
+recon has found nothing yet, mapping the surface is obviously first. If a
+credential has turned up, what it opens matters more than finishing a scan. If
+a direction is a dead end, it is recorded as one and reassigning it wastes the
+engagement's budget.
 
-1. **Map the surface.** Delegate to `recon` first and wait for it. Nothing else
-   can be planned sensibly until you know what exists. When it reports back,
-   read the knowledge base yourself to see what was found.
+**Reading the board.** You are given the attack surface, the established facts
+with their confidence, the dead ends, the paths already chained, the findings
+proposed, and the work already assigned. Facts come as a one-line summary each;
+when a summary is not enough, fetch the fact rather than guessing from it.
 
-2. **Assess in parallel.** Assign the assets that were found to the
-   specialists who fit them — web applications to `web`, APIs to `api`, hosts
-   and services to `network`, TLS and cryptography to `crypto`, cloud assets
-   to `cloud`, directory services to `ad`, accessible source or artefacts to
-   `code`. Give each one a specific brief naming the assets it should work and
-   what you want answered, not a generic instruction to go and test things.
-   Delegate several at once where their work does not overlap.
+**Assigning work.** Give each specialist a brief that names the specific assets
+and the question to answer — "test the authorization model on admin.example.org
+with the two accounts recon found" rather than "test the web application".
+Say what would count as a result, so a null result is recognisable as one
+instead of looking like a failure. Give each a task_key; assigning a key that
+is already on the board is refused in code, so check the list.
 
-3. **Follow the leads.** When a specialist reports something that opens a new
-   line of enquiry, assign it. A host that recon found and network
-   fingerprinted may need `web` next. A finding in one place often means the
-   same mistake elsewhere — have it checked.
+Assign several actions at once where they do not overlap. Two specialists
+working the same asset is waste you are responsible for preventing.
 
-4. **Decide when it is done.** The engagement is finished when the surface has
-   been covered to the depth the budget allows, not when every agent has run
-   once. Say so explicitly when you judge it complete, and summarise what was
-   covered and what was not.
+**Following leads.** The value of this loop is that a result changes the next
+decision. A host that turned out to run an application needs the web
+specialist. A finding in one place usually means the same mistake elsewhere —
+have it checked. A credential is worth more than another scan.
 
-Keep the budget in mind: it is finite and shared. Two specialists scanning the
-same host is waste you are responsible for preventing — that is what the claim
-mechanism in the knowledge base is for, and you should tell specialists which
-assets are theirs so they do not collide.
+**Stopping.** Set complete when the surface has been covered to the depth this
+budget allows, not when every specialist has run once. Say what was covered
+and what was not: an engagement that stopped with an area untested is a fact
+the client needs, and the report will say so.
 
-You do not rule on findings. Specialists propose them; a separate challenge
-round confirms or rejects them after you are done. Do not try to confirm,
-reject or re-score a finding yourself, and do not tell a specialist to drop
-one — if you think a finding is weak, say so in a note and let the review
+If a round establishes nothing new, that is information. Either there is a
+direction nobody has taken, or you are done. Do not reassign work to look busy.
+
+**What is not yours.** You do not rule on findings. Specialists propose them
+and a separate challenge round confirms or rejects them after you are done.
+Do not try to confirm, reject or re-score one, and do not tell a specialist to
+drop one — if you think a finding is weak, say so in a note and let the review
 handle it.
 """
 
@@ -175,6 +171,9 @@ class CampaignConfig:
     workspace_root: Path = Path("campaigns")
     domains: list[str] | None = None
     max_review_rounds: int = 2
+    # How many decide-and-dispatch rounds the search may run.
+    max_search_rounds: int = 12
+    max_parallel_agents: int = 3
     toolbox_image: str = "swarmstrike/toolbox:latest"
     resume: str | None = None
     skip_preflight: bool = False
@@ -368,50 +367,57 @@ class Campaign:
 
     # ------------------------------------------------------------------
     async def _assess(self) -> None:
-        """The delegated phase: the lead agent works the target through the team."""
+        """The search: decide from the board, dispatch, absorb, repeat.
+
+        This replaces a single long delegated session with an explicit loop.
+        The reason is the same one that applies everywhere else here — the
+        round structure, the duplicate-work check, the no-progress guard and
+        the budget check are not things a model can forget to do, because the
+        model is not the thing doing them.
+        """
         self._emit("phase", {"name": "assessment"})
 
         agents = self._agents()
-        options = ClaudeAgentOptions(
-            system_prompt=f"{self.context}\n\n{ORCHESTRATOR_PROMPT}",
-            model=model_for(Role.ORCHESTRATOR),
-            effort=effort_for(Role.ORCHESTRATOR),
-            agents=agents,
+        specialist_prompts = {
+            name: definition.prompt
+            for name, definition in agents.items()
+            if name not in CHALLENGE_NAMES
+        }
+        specialist_tools = {
+            name: list(definition.tools or [])
+            for name, definition in agents.items()
+            if name not in CHALLENGE_NAMES
+        }
+
+        search = StateSpaceSearch(
+            engagement=self.engagement,
+            kb=self.kb,
+            audit=self.audit,
+            budget=self.budget,
+            killswitch=self.killswitch,
+            book=self.book,
             mcp_servers=self._servers,
-            # The lead reads shared state and delegates; it does not touch targets.
-            allowed_tools=["Task", *KNOWLEDGE_TOOLS],
-            max_budget_usd=self.budget.remaining_usd,
-            setting_sources=[],
-            max_turns=120,
+            lead_prompt=f"{self.context}\n\n{ORCHESTRATOR_PROMPT}",
+            specialist_prompts=specialist_prompts,
+            specialist_tools=specialist_tools,
+            # The lead reads shared state and decides; it never touches a target.
+            lead_tools=ANALYSIS_TOOLS,
+            on_event=lambda event, payload: self._emit(event, payload),
+            max_rounds=self.config.max_search_rounds,
+            max_parallel=self.config.max_parallel_agents,
         )
 
-        roster = ", ".join(self.config.domains or SPECIALIST_NAMES)
-        opening = (
-            f"Begin the engagement. Your specialists are: {roster}.\n\n"
-            f"Start by delegating to `recon` to map the authorized surface, then assign "
-            f"the assets it finds to the specialists that fit them. Report what you have "
-            f"covered when you judge the assessment complete."
+        rounds = await search.run()
+        self.audit.record(
+            "search.finished",
+            rounds=len(rounds),
+            actions=sum(len(r.actions) for r in rounds),
+            productive_rounds=sum(1 for r in rounds if r.productive),
         )
-
-        async with ClaudeSDKClient(options=options) as client:
-            await client.query(opening)
-            async for message in client.receive_response():
-                self.killswitch.check()
-
-                if isinstance(message, AssistantMessage):
-                    for block in message.content:
-                        if isinstance(block, TextBlock) and block.text.strip():
-                            self._emit("lead", {"text": block.text})
-
-                elif isinstance(message, ResultMessage):
-                    self.budget.record_result(f"lead:{message.session_id}", message)
-                    self._emit("spend", {"status": self.budget.status()})
-                    if message.is_error:
-                        self._emit("lead.error", {
-                            "subtype": message.subtype,
-                            "detail": message.result or "",
-                        })
-                    self.budget.check()
+        self._emit("search.finished", {
+            "rounds": len(rounds),
+            "actions": sum(len(r.actions) for r in rounds),
+        })
 
     async def _debate(self) -> list[Outcome]:
         """The challenge round. Runs in code so it cannot be skipped."""

@@ -686,7 +686,7 @@ const el = (tag, cls, text) => { const n = document.createElement(tag);
 
 const state = { session:null, faces:{}, specialists:[], picks:new Set(),
                 agents:new Map(), findings:new Map(), socket:null, events:0,
-                approvals:new Map(), approvalTimeout:300 };
+                approvals:new Map(), approvalTimeout:300, round:null };
 
 /* ── event presentation ─────────────────────────────────────────── */
 const EV = {
@@ -699,6 +699,11 @@ const EV = {
   "ruling":           ["⚖","warn"],  "spend":           ["💳",""],
   "approval.requested":["✋","warn"], "approval.decided":["🗳",""],
   "approval.resolved":["✓","good"],
+  "round.start":       ["◷",""],      "round.end":       ["◶",""],
+  "action.dispatched": ["→",""],      "action.finished": ["←",""],
+  "action.failed":     ["✗","bad"],   "search.complete": ["🏁","good"],
+  "search.converged":  ["◎","warn"],  "search.stopped":  ["⏸","warn"],
+  "search.finished":   ["🏁","good"], "recipe.invalid":  ["⚠","warn"],
   "campaign.halted":  ["🛑","bad"],  "budget.exhausted":["💸","warn"],
   "window.closed":    ["🕒","warn"], "review.stopped":  ["⏸","warn"],
   "report.written":   ["📄","good"], "report.failed":   ["✗","bad"],
@@ -724,6 +729,18 @@ function describe(kind, d) {
     case "approval.requested":return `${d.agent} is waiting for approval: ${d.summary||""}`;
     case "approval.decided":  return `${d.request_id||""} ${d.decision} (${d.decided_by||""}) ${d.reason||""}`;
     case "approval.resolved": return `${d.request_id||""} ${d.decision}`;
+    case "round.start":       return `round ${d.round} of ${d.of}`;
+    case "round.end":         return `round ${d.round}: ${d.actions} action(s), `
+                                     + `${d.new_facts} new fact(s), ${d.new_findings} new finding(s)`;
+    case "action.dispatched": return `${d.agent} ← ${d.task_key}: ${d.brief||""}`;
+    case "action.finished":   return `${d.agent} done (${d.task_key}): `
+                                     + `${d.new_facts} fact(s), ${d.new_findings} finding(s)`;
+    case "action.failed":     return d.detail;
+    case "search.complete":   return `complete at round ${d.round}: ${d.reason||""}`;
+    case "search.converged":  return `converged at round ${d.round}: ${d.reason||""}`;
+    case "search.stopped":    return `stopped at round ${d.round}: ${d.reason||""}`;
+    case "search.finished":   return `${d.rounds} round(s), ${d.actions} action(s)`;
+    case "recipe.invalid":    return `recipe ${d.file} could not be loaded: ${d.detail||""}`;
     case "spend":             return d.status;
     case "report.written":    return `report written to ${d.path}`;
     case "report.failed":     return d.detail;
@@ -869,6 +886,10 @@ function renderHeader(s) {
 
   const chips = [];
   const live = s.status === "running" && !s.halted;
+  if (state.round) {
+    chips.push(Object.assign(el("div","chip"),
+      {innerHTML:`round <b>${state.round.n}</b>/${state.round.of}`}));
+  }
   const statusChip = el("div", `chip ${live ? "live" : s.halted ? "halted" : ""}`);
   statusChip.innerHTML = `<b>${s.halted ? "halted" : s.status}</b>`;
   chips.push(statusChip);
@@ -1605,6 +1626,11 @@ function connect(sessionId) {
 
     pushEvent(ev);
     applyToAgent(ev.kind, ev.data || {});
+
+    if (ev.kind === "round.start") {
+      state.round = {n: ev.data.round, of: ev.data.of};
+      refreshHeader();
+    }
 
     if (ev.kind === "approval.requested") {
       state.approvals.set(ev.data.id, ev.data);

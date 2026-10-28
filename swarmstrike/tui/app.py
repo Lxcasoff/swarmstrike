@@ -267,6 +267,29 @@ class SwarmstrikeApp(App[int]):
                 log.write(payload["text"].strip() + "\n")
             elif kind == "lead.error":
                 log.write(f"[yellow]⚠ lead: {payload['subtype']}[/] {payload['detail'][:200]}")
+            elif kind == "round.start":
+                status.phase = f"assessment · round {payload['round']}/{payload['of']}"
+                status.refresh_text()
+            elif kind == "round.end":
+                log.write(
+                    f"[dim]round {payload['round']}: {payload['actions']} action(s), "
+                    f"{payload['new_facts']} new fact(s), "
+                    f"{payload['new_findings']} new finding(s)[/]"
+                )
+            elif kind == "action.dispatched":
+                log.write(
+                    f"[cyan]\u2192 {payload['agent']}[/] [dim]{payload['task_key']}[/]  "
+                    f"{payload['brief'][:160]}"
+                )
+            elif kind == "action.finished":
+                log.write(
+                    f"[dim]\u2190 {payload['agent']} done: {payload['new_facts']} fact(s), "
+                    f"{payload['new_findings']} finding(s)[/]"
+                )
+            elif kind in {"search.complete", "search.converged", "search.stopped"}:
+                status.note = payload.get("reason", "")
+                status.refresh_text()
+                log.write(f"[bold]{kind}[/] [dim]{payload.get('reason', '')}[/]")
             elif kind == "approval.requested":
                 log.write(
                     f"[bold yellow]\u270b {payload.get('agent', '')} is waiting for "
