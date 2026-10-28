@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 
 from swarmstrike.engagement import Engagement
-from swarmstrike.knowledge.db import FactError, KnowledgeBase, parse_fact_key
+from swarmstrike.knowledge.db import FactError, KnowledgeBase, _now, parse_fact_key
 
 CONTRACT = {
     "engagement": {"id": "E", "client": "C", "mission": "M",
@@ -209,3 +209,29 @@ def test_links_can_be_supplied_with_the_fact(kb: KnowledgeBase) -> None:
     kb.upsert_fact("finding/spn", "kerberoastable service account", "ad",
                    confidence="confirmed", links=[("enables", "access/target")])
     assert [f["fact_key"] for f in kb.attack_paths()[0]] == ["finding/spn", "access/target"]
+
+
+def test_claims_an_agent_opened_during_a_dispatch_close_with_it(kb) -> None:
+    """An agent can stake out work inside its own task with claim_task, and
+    nothing else releases those: the orchestrator only knows the key it
+    dispatched under. Left open they read as work still in flight, and the
+    lead — told not to reassign running work — stops assigning anything."""
+    kb.try_claim("web:from-an-earlier-round", "web")
+    kb.release_claim("web:from-an-earlier-round", "done")
+
+    opened_at = _now()
+    kb.try_claim("web:dispatched", "web")
+    kb.try_claim("web-self-staked-subtask", "web")
+    kb.try_claim("api:a-different-agents-work", "api")
+
+    kb.release_claim("web:dispatched", "summary")
+    closed = kb.release_agent_claims("web", opened_at)
+
+    assert closed == 1
+    rows = {
+        row["task_key"]: row["released_at"]
+        for row in kb.conn.execute("SELECT task_key, released_at FROM claim")
+    }
+    assert rows["web-self-staked-subtask"] is not None
+    # Another agent's open claim is not this dispatch's to close.
+    assert rows["api:a-different-agents-work"] is None

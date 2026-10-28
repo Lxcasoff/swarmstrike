@@ -23,7 +23,12 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from . import engagement as contract
-from .agents.roster import CHALLENGE_NAMES, SPECIALIST_NAMES, build_agents
+from .agents.roster import (
+    CHALLENGE_NAMES,
+    RED_TEAM_NAMES,
+    SPECIALIST_NAMES,
+    build_agents,
+)
 from .approval import ApprovalGate, AutoDenyGate
 from .audit import AuditLog
 from .budget import BudgetExceeded, BudgetTracker
@@ -177,6 +182,9 @@ class CampaignConfig:
     toolbox_image: str = "swarmstrike/toolbox:latest"
     resume: str | None = None
     skip_preflight: bool = False
+    # Docker network the toolbox joins. Needed to reach a target on a
+    # user-defined network — a lab, or a jump host that sits on one.
+    network: str | None = None
 
 
 @dataclass
@@ -214,7 +222,10 @@ class Campaign:
         self.dir = config.workspace_root / self.campaign_id
         self.dir.mkdir(parents=True, exist_ok=True)
 
-        self.audit = AuditLog(self.dir / "audit.jsonl")
+        self.audit = AuditLog(
+            self.dir / "audit.jsonl",
+            known_agents=(*SPECIALIST_NAMES, *RED_TEAM_NAMES, *CHALLENGE_NAMES, "lead"),
+        )
         self.kb = KnowledgeBase(self.dir / "knowledge.sqlite")
         self.killswitch = KillSwitch(self.dir)
         self.budget = BudgetTracker(self.engagement.budget)
@@ -244,6 +255,7 @@ class Campaign:
                     if os.environ.get("SWARMSTRIKE_HOST_WORKSPACE") else None
                 ),
                 local_workspace_root=config.workspace_root,
+                network=config.network,
             ),
             max_concurrent=self.engagement.rules_of_engagement.max_concurrent_tools,
             min_interval_s=_interval_for(self.engagement.rules_of_engagement.intensity),
@@ -299,6 +311,17 @@ class Campaign:
         if not self.config.skip_preflight:
             ready, detail = await self.executor.preflight()
             self._emit("preflight", {"ready": ready, "detail": detail})
+            if ready:
+                carried = await self.executor.probe_binaries(sorted(self.book.binaries()))
+                absent = sorted(self.book.binaries() - carried)
+                self._emit("toolbox.probed", {
+                    "carried": len(carried),
+                    "absent": absent,
+                })
+                self.audit.record(
+                    "toolbox.probed", image=self.config.toolbox_image,
+                    carried=sorted(carried), absent=absent,
+                )
             if not ready:
                 self.kb.close_campaign("aborted")
                 return CampaignResult(
@@ -405,6 +428,7 @@ class Campaign:
             on_event=lambda event, payload: self._emit(event, payload),
             max_rounds=self.config.max_search_rounds,
             max_parallel=self.config.max_parallel_agents,
+            carries=self.executor.carries,
         )
 
         rounds = await search.run()

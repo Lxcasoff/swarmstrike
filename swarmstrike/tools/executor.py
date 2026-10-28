@@ -135,8 +135,12 @@ class ContainerPolicy:
         directory: a campaign directory sits under that root, and anchoring
         anywhere else produces a doubled path.
         """
+        # Absolute, always: the daemon rejects a relative bind-mount source,
+        # and a relative workspace is the normal thing to pass on the command
+        # line. This failed with nothing but docker's usage message until the
+        # mount check caught it.
         if self.host_workspace is None:
-            return str(workspace)
+            return str(workspace.resolve())
 
         root = self.local_workspace_root
         if root is not None:
@@ -145,9 +149,9 @@ class ContainerPolicy:
             except (ValueError, OSError):
                 relative = None
             if relative is not None and relative != Path("."):
-                return str(self.host_workspace / relative)
+                return str((self.host_workspace / relative).resolve())
 
-        return str(self.host_workspace)
+        return str(self.host_workspace.resolve())
 
     def docker_argv(
         self, workspace: Path, *, needs_raw_socket: bool, stdin: bool = False
@@ -201,6 +205,14 @@ class ToolExecutor:
     # Binaries the agents may invoke. Populated from the recipe book plus the
     # contract's extra_binaries.
     allowed_binaries: frozenset[str] = frozenset()
+
+    # What the toolbox image actually carries, discovered at preflight. None
+    # means it has not been probed, which is treated as "assume present" so a
+    # campaign started with --skip-preflight is not crippled. The contract
+    # authorizing a tool and the image carrying it are different questions, and
+    # conflating them produces agents that keep asking for something that can
+    # never run.
+    available_binaries: frozenset[str] | None = field(default=None)
 
     _semaphore: asyncio.Semaphore = field(init=False)
     _last_launch: float = field(default=0.0, init=False)
@@ -688,6 +700,43 @@ class ToolExecutor:
             return False
         return any(marker in cgroup for marker in ("docker", "containerd", "kubepods"))
 
+    async def probe_binaries(self, candidates: Sequence[str]) -> frozenset[str]:
+        """Ask the toolbox image which of these it carries."""
+        wanted = sorted({c for c in candidates if c})
+        if not wanted:
+            return frozenset()
+
+        # Recipe binaries are validated as plain names, so this builds no shell
+        # injection — and it is the image's own shell, not a target's.
+        script = "; ".join(
+            f"command -v {name} >/dev/null 2>&1 && echo {name}" for name in wanted
+        ) + "; true"
+
+        argv = self.policy.docker_argv(self.workspace, needs_raw_socket=False) + [
+            "/bin/sh", "-c", script,
+        ]
+        try:
+            process = await asyncio.create_subprocess_exec(
+                *argv,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                stdin=asyncio.subprocess.DEVNULL,
+            )
+            out, _ = await asyncio.wait_for(process.communicate(), timeout=120)
+        except (asyncio.TimeoutError, OSError):
+            # Unknown is not the same as absent; leave it unprobed.
+            return frozenset(wanted)
+
+        found = frozenset(
+            line.strip() for line in out.decode(errors="replace").splitlines() if line.strip()
+        )
+        self.available_binaries = found
+        return found
+
+    def carries(self, binary: str) -> bool:
+        """Whether the toolbox image can run this. True when unprobed."""
+        return self.available_binaries is None or binary in self.available_binaries
+
     async def verify_mount(self) -> tuple[bool, str]:
         """Prove the workspace mount lands where this process is writing.
 
@@ -736,9 +785,9 @@ class ToolExecutor:
             f"a toolbox container could not read the campaign workspace "
             f"({detail[-1] if detail else 'no output'}). It mounted "
             f"{self.policy.mount_source(self.workspace)}, which is not where this "
-            f"process is writing. Tools would run and write into nothing. If "
-            f"swarmstrike is containerised, mount the campaigns directory at the "
-            f"same absolute path it has on the host, or set "
+            f"process is writing, so tools would run and write into nothing. "
+            f"If swarmstrike is itself containerised, mount the campaigns "
+            f"directory at the same absolute path it has on the host, or set "
             f"SWARMSTRIKE_HOST_WORKSPACE to the host path for it."
         )
 

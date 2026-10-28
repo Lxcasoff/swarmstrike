@@ -1,0 +1,102 @@
+# swarmstrike toolbox, minimal variant.
+#
+# The main toolbox installs its tooling with apt. Some environments have no
+# package-manager egress at all — a hardened CI runner, an air-gapped segment,
+# a container platform that only permits a mirror registry — and in those the
+# main image cannot be built. This one needs nothing but a registry and
+# GitHub releases.
+#
+#   docker build -t swarmstrike/toolbox:minimal \
+#     -f docker/Dockerfile.toolbox-minimal docker/
+#
+# Where TLS is intercepted (a corporate or agent proxy), pass its certificate
+# in. Which argument depends on what you have, and the distinction matters:
+#
+#   EXTRA_CA   one additional certificate, appended to the system bundle. Use
+#              this for a single corporate root, so the public roots still work.
+#   CA_BUNDLE  a complete bundle that replaces the system one. Use this when
+#              the proxy hands you a full bundle — appending one of those
+#              leaves two copies of the same root with different validity, and
+#              OpenSSL picks the wrong one and fails to verify anything.
+#
+#   cp /path/to/ca-bundle.crt docker/ca-bundle.crt
+#   docker build --build-arg CA_BUNDLE=ca-bundle.crt ...
+#
+# It carries a reduced tool set: curl, nuclei, httpx and ffuf. That covers web
+# and API work and nothing else — no nmap, no AD tooling, no cloud tooling. Use
+# the main toolbox when you can; swarmstrike reports which recipes the image
+# cannot serve rather than offering them and failing.
+FROM mirror.gcr.io/curlimages/curl:latest AS fetch
+
+USER root
+ARG TARGETARCH=amd64
+ARG NUCLEI_VERSION=3.3.5
+ARG HTTPX_VERSION=1.6.9
+ARG FFUF_VERSION=2.1.0
+ARG EXTRA_CA=none.pem
+ARG CA_BUNDLE=none.pem
+
+WORKDIR /dl
+COPY ${EXTRA_CA} ${CA_BUNDLE} /tmp/ca/
+# Both well-known paths are written, because which one is consulted depends
+# on the distribution: Debian's curl reads certs/ca-certificates.crt and
+# Alpine's OpenSSL reads cert.pem. Writing only the first looks like it worked
+# and still fails to verify anything.
+ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
+    CURL_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
+RUN set -eux; \
+    cd /tmp/ca; \
+    install_bundle() { \
+        cp "$1" /etc/ssl/certs/ca-certificates.crt; \
+        cp "$1" /etc/ssl/cert.pem; \
+    }; \
+    if [ -s "${CA_BUNDLE}" ] && grep -q 'BEGIN CERTIFICATE' "${CA_BUNDLE}"; then \
+        install_bundle "${CA_BUNDLE}"; \
+        echo "replaced the system CA bundle"; \
+    elif [ -s "${EXTRA_CA}" ] && grep -q 'BEGIN CERTIFICATE' "${EXTRA_CA}"; then \
+        for target in /etc/ssl/certs/ca-certificates.crt /etc/ssl/cert.pem; do \
+            [ -f "$target" ] || continue; \
+            printf '\n' >> "$target"; \
+            cat "${EXTRA_CA}" >> "$target"; \
+        done; \
+        echo "appended one certificate to the system CA bundles"; \
+    fi
+
+RUN set -eux; \
+    get() { curl -fsSL --retry 3 -o "$1" "$2"; }; \
+    get nuclei.zip "https://github.com/projectdiscovery/nuclei/releases/download/v${NUCLEI_VERSION}/nuclei_${NUCLEI_VERSION}_linux_${TARGETARCH}.zip"; \
+    get httpx.zip  "https://github.com/projectdiscovery/httpx/releases/download/v${HTTPX_VERSION}/httpx_${HTTPX_VERSION}_linux_${TARGETARCH}.zip"; \
+    get ffuf.tgz   "https://github.com/ffuf/ffuf/releases/download/v${FFUF_VERSION}/ffuf_${FFUF_VERSION}_linux_${TARGETARCH}.tar.gz"; \
+    mkdir -p /out; \
+    for z in nuclei httpx; do \
+        unzip -qo "${z}.zip" -d "${z}" 2>/dev/null || busybox unzip -o "${z}.zip" -d "${z}"; \
+        install -m 0755 "${z}/${z}" /out/; \
+    done; \
+    tar -xzf ffuf.tgz ffuf; install -m 0755 ffuf /out/
+
+# A compact content-discovery list at the path the tool catalog defaults to.
+RUN set -eux; \
+    mkdir -p /out/seclists/Discovery/Web-Content; \
+    curl -fsSL -o /out/seclists/Discovery/Web-Content/common.txt \
+      "https://raw.githubusercontent.com/danielmiessler/SecLists/2024.1/Discovery/Web-Content/common.txt"
+
+# ---------------------------------------------------------------------------
+FROM mirror.gcr.io/curlimages/curl:latest
+
+USER root
+ENV PATH="/opt/tools/bin:${PATH}"
+
+COPY --from=fetch /out/nuclei /out/httpx /out/ffuf /opt/tools/bin/
+COPY --from=fetch /out/seclists /usr/share/seclists
+RUN chmod -R a+rX /opt/tools /usr/share/seclists \
+    && mkdir -p /work && chown 1000:1000 /work
+
+# Tools run unprivileged, and the executor points HOME and the XDG directories
+# at the tmpfs because the root filesystem is mounted read-only.
+USER 1000
+WORKDIR /work
+
+LABEL org.opencontainers.image.title="swarmstrike toolbox (minimal)" \
+      org.opencontainers.image.description="Web and API tooling only: curl, nuclei, httpx, ffuf"
+
+CMD ["/bin/sh", "-c", "echo 'swarmstrike minimal toolbox — the executor invokes this image with a command'"]

@@ -96,6 +96,13 @@ def build_toolbox_tools(ctx: CampaignContext) -> list[Any]:
                 if needle in r.name.lower() or needle in r.summary.lower()
             ]
 
+        # The contract authorizing a tool and the toolbox image carrying it are
+        # different questions. A tool that cannot run is not offered, because an
+        # agent that keeps asking for it spends the engagement's budget on
+        # nothing.
+        missing = [r for r in available if not ctx.executor.carries(r.binary)]
+        available = [r for r in available if ctx.executor.carries(r.binary)]
+
         if not available:
             return _text(
                 "No tool matches. Either the domain or search term is wrong, or the "
@@ -107,16 +114,25 @@ def build_toolbox_tools(ctx: CampaignContext) -> list[Any]:
         for recipe in available:
             by_risk.setdefault(recipe.risk.value, []).append(recipe.for_agent())
 
-        withheld = len(ctx.book) - len(available)
-        payload = {
-            "available": by_risk,
-            "note": (
+        notes = []
+        withheld = len(ctx.book) - len(available) - len(missing)
+        if withheld:
+            notes.append(
                 f"{withheld} further tool(s) exist but are not authorized by this "
                 f"engagement's contract."
-                if withheld else "Every shipped tool is authorized here."
-            ),
-        }
-        return _text(json.dumps(payload, indent=2))
+            )
+        if missing:
+            notes.append(
+                f"{len(missing)} authorized tool(s) are not in this toolbox image and "
+                f"cannot run here: {', '.join(sorted(r.name for r in missing))}. Do not "
+                f"ask for them."
+            )
+        if not notes:
+            notes.append("Every shipped tool is authorized and present here.")
+
+        return _text(json.dumps(
+            {"available": by_risk, "notes": notes}, indent=2
+        ))
 
     @tool(
         "describe_tool",
@@ -159,6 +175,13 @@ def build_toolbox_tools(ctx: CampaignContext) -> list[Any]:
         allowed, reason = recipe.authorize(ctx.engagement)
         if not allowed:
             return _refused(f"{recipe.name} is a {recipe.risk.value} tool. {reason}")
+
+        if not ctx.executor.carries(recipe.binary):
+            return _error(
+                f"{recipe.name} needs {recipe.binary}, which this toolbox image does "
+                f"not carry. Call list_tools to see what is actually available here, "
+                f"and do not ask for this one again."
+            )
 
         raw = (args.get("parameters") or "{}").strip() or "{}"
         try:

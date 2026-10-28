@@ -372,6 +372,25 @@ class KnowledgeBase:
         )
         return cursor.rowcount > 0
 
+    def release_agent_claims(self, agent: str, since: str) -> int:
+        """Close out claims an agent made for itself during a dispatch.
+
+        An agent can call claim_task to stake out work it is doing inside its
+        own task, and nothing releases those: the orchestrator only knows about
+        the key it dispatched under. Left open they read as work still in
+        flight, and the lead — which is told not to reassign running work —
+        stops assigning anything at all. So when a dispatch finishes, the
+        claims that agent opened during it close with it.
+        """
+        cursor = self.conn.execute(
+            """UPDATE claim SET released_at = ?, result = ?
+               WHERE campaign_id = ? AND agent = ? AND released_at IS NULL
+                 AND claimed_at >= ?""",
+            (_now(), "closed with the dispatch that opened it",
+             self.campaign_id, agent, since),
+        )
+        return cursor.rowcount
+
     def release_claim(self, task_key: str, result: str = "") -> None:
         self.conn.execute(
             "UPDATE claim SET released_at = ?, result = ? WHERE campaign_id = ? AND task_key = ?",

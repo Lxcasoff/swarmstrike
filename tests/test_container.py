@@ -44,6 +44,28 @@ def test_without_a_mapping_the_local_path_is_used(tmp_path: Path) -> None:
     assert mount_of(argv) == f"{tmp_path}:/work:rw"
 
 
+def test_a_relative_workspace_still_mounts(monkeypatch, tmp_path: Path) -> None:
+    """The daemon rejects a relative bind-mount source.
+
+    A relative --workspace is the normal thing to pass on the command line, and
+    this failed with nothing but docker's usage message until the mount check
+    caught it on a real campaign.
+    """
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "campaigns" / "C1").mkdir(parents=True)
+
+    source = ContainerPolicy().mount_source(Path("campaigns/C1"))
+    assert Path(source).is_absolute()
+    assert source == str((tmp_path / "campaigns" / "C1").resolve())
+
+
+def test_a_translated_mapping_is_absolute_too(tmp_path: Path) -> None:
+    root = tmp_path / "campaigns"
+    (root / "C1").mkdir(parents=True)
+    policy = ContainerPolicy(host_workspace=Path("/data/sw"), local_workspace_root=root)
+    assert Path(policy.mount_source(root / "C1")).is_absolute()
+
+
 def test_a_host_mapping_is_anchored_on_the_workspace_root(tmp_path: Path) -> None:
     # Anchoring on the working directory instead produced a doubled path
     # (/data/sw/campaigns/campaigns/ENG-1), so the root is passed explicitly.

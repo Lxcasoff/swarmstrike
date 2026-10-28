@@ -365,6 +365,18 @@ def _classify(token: str) -> list[str]:
     if not token:
         return []
 
+    # Several scanners take a comma-separated target list (httpx -u a,b). Split
+    # one only when every part is itself a target: `-ports 80,443` must not
+    # become two hosts named "80" and "443". All-or-nothing keeps the failure
+    # fail-closed — a list we cannot fully read yields nothing, and a command
+    # with no readable target is refused rather than run unchecked.
+    if "," in token:
+        parts = [part for part in (p.strip() for p in token.split(",")) if part]
+        resolved = [_classify(part) for part in parts]
+        if len(parts) > 1 and all(resolved):
+            return [target for group in resolved for target in group]
+        return []
+
     if "://" in token:
         return [token]
 

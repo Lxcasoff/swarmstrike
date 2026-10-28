@@ -215,3 +215,23 @@ def test_command_refused_outside_engagement_window() -> None:
     )
     assert not decision.allowed
     assert decision.rule == "window"
+
+
+def test_comma_separated_targets_are_each_checked(guard):
+    """httpx -u a,b names two hosts. The guard has to see both, not neither."""
+    argv = [
+        "httpx", "-silent", "-u", "203.0.113.5,203.0.113.6",
+        "-ports", "80,443,3000", "-tech-detect",
+    ]
+    assert guard.extract_targets(argv) == ["203.0.113.5", "203.0.113.6"]
+
+
+def test_comma_separated_port_list_is_not_a_host_list(guard):
+    """`-ports 80,443` must not become hosts named "80" and "443"."""
+    assert guard.extract_targets(["httpx", "-ports", "80,443,8080"]) == []
+
+
+def test_partly_unreadable_target_list_yields_nothing(guard):
+    """Fail closed: a list we cannot fully read is no list at all, and a
+    command with no readable target is refused rather than run unchecked."""
+    assert guard.extract_targets(["httpx", "-u", "203.0.113.5,-->garbage"]) == []

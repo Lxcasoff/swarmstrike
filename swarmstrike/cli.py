@@ -171,7 +171,15 @@ def run(
         help="Toolbox container image. Defaults to $SWARMSTRIKE_TOOLBOX_IMAGE.",
     ),
     resume: str = typer.Option(None, "--resume", help="Resume an existing campaign by id."),
+    network: str = typer.Option(
+        None, "--network",
+        help="Docker network the toolbox joins, to reach a target on one.",
+    ),
     rounds: int = typer.Option(2, "--review-rounds", min=1, max=4, help="Maximum review rounds per finding."),
+    search_rounds: int = typer.Option(
+        12, "--search-rounds", min=1, max=40,
+        help="Maximum decide-and-dispatch rounds the campaign may run.",
+    ),
     tui: bool = typer.Option(False, "--tui", help="Live view instead of streaming log."),
     skip_preflight: bool = typer.Option(
         False, "--skip-preflight", help="Skip the Docker and toolbox image check."
@@ -197,11 +205,13 @@ def run(
         ),
         domains=list(domains) if domains else None,
         max_review_rounds=rounds,
+        max_search_rounds=search_rounds,
         toolbox_image=image or os.environ.get(
             "SWARMSTRIKE_TOOLBOX_IMAGE", "swarmstrike/toolbox:latest"
         ),
         resume=resume,
         skip_preflight=skip_preflight,
+        network=network,
     )
 
     if tui:
@@ -442,6 +452,58 @@ def toolbox(
     console.print(
         "[dim]The image carries the assessment tooling. Agents never execute on the "
         "host — every command runs inside a disposable container built from it.[/]"
+    )
+
+
+@app.command("probe")
+def probe(
+    image: str = typer.Option("swarmstrike/toolbox:latest", "--image"),
+    network: str = typer.Option("none", "--network"),
+) -> None:
+    """Report which recipes a toolbox image can actually run.
+
+    A recipe whose binary the image does not carry is withheld from the agents
+    rather than left to fail at execution time: an agent told that nmap exists
+    will keep reaching for it, and spend budget doing so. The same probe runs
+    at preflight; this exposes it so an image can be checked before a campaign.
+    """
+    import tempfile
+
+    from .tools.executor import ContainerPolicy, ToolExecutor
+    from .tools.recipes import load_recipes
+
+    book = load_recipes()
+    wanted = sorted(book.binaries())
+    if not wanted:
+        _fail("no recipes loaded")
+
+    # Probing reads only the policy and the workspace path — it starts a
+    # container that runs `command -v` and exits. Nothing it touches needs a
+    # contract, a scope guard or a knowledge base, so there are none to give it.
+    executor = ToolExecutor(
+        guard=None,  # type: ignore[arg-type]
+        audit=None,  # type: ignore[arg-type]
+        kb=None,  # type: ignore[arg-type]
+        killswitch=None,  # type: ignore[arg-type]
+        workspace=Path(tempfile.mkdtemp(prefix="swarmstrike-probe-")),
+        policy=ContainerPolicy(image=image, network=network),
+    )
+    found = asyncio.run(executor.probe_binaries(wanted))
+
+    table = Table("Binary", "In image", "Recipes", box=None, padding=(0, 2))
+    for name in wanted:
+        count = sum(1 for r in book.recipes.values() if r.binary == name)
+        table.add_row(
+            name,
+            "[green]yes[/]" if name in found else "[yellow]no[/]",
+            str(count),
+        )
+    console.print(table)
+
+    missing = [name for name in wanted if name not in found]
+    console.print(
+        f"\n{len(found)}/{len(wanted)} binaries present"
+        + (f" — missing: {', '.join(missing)}" if missing else "")
     )
 
 

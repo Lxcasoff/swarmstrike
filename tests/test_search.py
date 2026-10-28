@@ -269,3 +269,26 @@ def test_events_are_emitted_for_the_live_view(parts) -> None:
 
     for event in ("round.start", "lead", "round.end", "search.complete"):
         assert event in seen, event
+
+
+def test_the_digest_withholds_tools_the_image_cannot_run(parts) -> None:
+    """The lab run failed on exactly this: the digest offered recon nmap, which
+    the toolbox image did not carry, so the lead planned a port scan that could
+    not happen. What the contract authorizes and what the image carries are
+    different questions."""
+    full = StateSpaceSearch(**parts).digest(1)
+    assert "nmap" in full
+
+    thin = StateSpaceSearch(**parts, carries=lambda binary: binary != "nmap").digest(1)
+    assert "nmap" not in thin
+
+
+def test_an_unreleased_claim_is_not_reported_as_running(parts) -> None:
+    """Rounds are sequential — every dispatch is awaited before the next digest
+    — so a claim with no release is not work in flight. Calling it "running"
+    told the lead not to assign anything, and the campaign converged early."""
+    parts["kb"].try_claim("agent-staked-this-out", "web")
+    digest = StateSpaceSearch(**parts).digest(2)
+    assert "agent-staked-this-out" in digest
+    assert "(running)" not in digest
+    assert "no result recorded" in digest

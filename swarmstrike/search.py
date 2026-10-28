@@ -21,6 +21,7 @@ import asyncio
 import json
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from typing import Any
 
 from claude_agent_sdk import ClaudeAgentOptions, ResultMessage, query
@@ -139,6 +140,7 @@ class StateSpaceSearch:
         on_event: EventSink | None = None,
         max_rounds: int = 12,
         max_parallel: int = 3,
+        carries: Callable[[str], bool] | None = None,
     ) -> None:
         self.engagement = engagement
         self.kb = kb
@@ -151,6 +153,9 @@ class StateSpaceSearch:
         self.specialist_prompts = specialist_prompts
         self.specialist_tools = specialist_tools
         self.lead_tools = lead_tools
+        # Defaults to "assume present", which is what --skip-preflight leaves
+        # behind: unprobed is not the same as absent.
+        self.carries = carries or (lambda _binary: True)
         self.max_rounds = max_rounds
         self.max_parallel = max_parallel
         self._sink = on_event or (lambda _event, _payload: None)
@@ -187,9 +192,14 @@ class StateSpaceSearch:
             )
         ]
 
+        # What the contract authorizes and what the toolbox image carries are
+        # different questions, and the digest is the lead's only view of the
+        # toolset. Listing a tool that cannot run gets it planned for and
+        # assigned, and the specialist comes back with nothing.
         available = {
             name: sorted({
                 r.name for r in self.book.available_to(self.engagement, [name])
+                if self.carries(r.binary)
             })
             for name in self.specialist_prompts
         }
@@ -234,7 +244,7 @@ class StateSpaceSearch:
             block(
                 "Work already assigned — assigning it again is refused",
                 [f"`{c['task_key']}` to {c['agent']}"
-                 + (" (finished)" if c["released_at"] else " (running)")
+                 + (" (finished)" if c["released_at"] else " (no result recorded)")
                  for c in claimed],
                 "nothing assigned yet",
             ),
@@ -329,6 +339,7 @@ class StateSpaceSearch:
         key = action.task_key or f"{action.agent}:{abs(hash(action.brief)) % 10**8}"
         if not self.kb.try_claim(key, action.agent):
             return Outcome(action, False, f"{key} was already claimed — skipped")
+        opened_at = datetime.now(tz=UTC).isoformat()
 
         before_facts = len(self.kb.list_facts(include_deprecated=True))
         before_findings = len(self.kb.findings())
@@ -371,6 +382,7 @@ class StateSpaceSearch:
         after_facts = len(self.kb.list_facts(include_deprecated=True))
         after_findings = len(self.kb.findings())
         self.kb.release_claim(key, detail[:500])
+        self.kb.release_agent_claims(action.agent, opened_at)
 
         outcome = Outcome(
             action, True, detail or "(the specialist returned no summary)",

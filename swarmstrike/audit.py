@@ -11,10 +11,11 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 from zoneinfo import ZoneInfo
 
 from .engagement import Engagement
@@ -70,10 +71,16 @@ class Entry:
 class AuditLog:
     """Append-only JSONL log with a SHA-256 hash chain."""
 
-    def __init__(self, path: str | Path) -> None:
+    def __init__(self, path: str | Path, known_agents: Iterable[str] = ()) -> None:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._seq, self._head = self._tail_state()
+        # The `agent` on a tool call is a string the model fills in, not an
+        # identity the tool server can verify: subagent identity does not reach
+        # an MCP server. So every entry that carries one also carries whether
+        # the name is on the roster, and a reader can tell a dispatched
+        # specialist from a label an agent invented for itself.
+        self.known_agents = frozenset(known_agents)
 
     def _tail_state(self) -> tuple[int, str]:
         if not self.path.exists():
@@ -94,6 +101,8 @@ class AuditLog:
 
     # ------------------------------------------------------------------
     def record(self, event: str, **data: Any) -> Entry:
+        if "agent" in data and self.known_agents:
+            data = {**data, "agent_on_roster": data["agent"] in self.known_agents}
         entry = Entry.build(self._seq, event, data, self._head)
         # Append and flush to disk before returning: a crash must not be able
         # to lose the record of a command that already ran.

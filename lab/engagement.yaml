@@ -1,0 +1,94 @@
+# swarmstrike lab engagement.
+#
+# The targets are deliberately vulnerable applications published for this
+# purpose (OWASP Juice Shop and DVWA), running in containers on an isolated
+# Docker network on this machine. There is no third party involved and nothing
+# leaves the host.
+#
+# Note the scope: 172.31.77.0/24 is a private range, and swarmstrike refuses
+# private addresses unless the contract names them. Naming it here is what
+# makes this lab reachable at all, which is the same mechanism an internal
+# engagement uses.
+schema_version: 1
+
+engagement:
+  id: "LAB-001"
+  client: "swarmstrike lab"
+  mission: "First end-to-end campaign against deliberately vulnerable targets"
+  reference: "LAB-001"
+  authorized_by:
+    name: "Lucas Offredi"
+    role: "operator"
+    email: "briocheoff@gmail.com"
+    authorization_ref: "local lab, targets owned by the operator"
+    signed_on: "2026-10-28"
+
+window:
+  start: "2026-10-01T00:00:00+00:00"
+  end: "2027-01-01T00:00:00+00:00"
+  timezone: "UTC"
+
+scope:
+  domains: []
+  ips: []
+  cidrs:
+    - "172.31.77.0/24"
+  urls:
+    - "http://172.31.77.10:3000/"
+    - "http://172.31.77.11/"
+  require_resolved_ip_in_scope: false
+
+exclusions:
+  domains: []
+  ips: []
+  cidrs: []
+  url_paths: []
+
+rules_of_engagement:
+  intensity: "aggressive"
+  max_requests_per_second: 50
+  max_concurrent_tools: 3
+
+  forbid_destructive: true
+  forbid_denial_of_service: true
+  forbid_data_modification: true
+  forbid_persistence: true
+  forbid_social_engineering: true
+  forbid_pivot_outside_scope: true
+
+  credential_testing:
+    allowed: false
+    accounts: []
+
+  exploitation:
+    allowed: true
+    stop_at_proof: true
+
+  red_team:
+    enabled: false
+
+  arbitrary_execution:
+    structured_commands: true
+    pipelines: true
+    shell: false
+    scripts: false
+    extra_binaries: []
+    approval_timeout_s: 300
+
+budget:
+  max_usd: 4.00
+  max_tokens: 3000000
+  max_wall_clock_minutes: 25
+
+contacts:
+  emergency_stop:
+    name: "operator"
+    phone: "n/a — local lab"
+  halt_on:
+    - "any host answering outside 172.31.77.0/24"
+    - "a container other than the two lab targets responding"
+
+integrity:
+  fingerprint: 669919a4487fef9f1af3489030c10da9f189d99b7127a797bbcb7233518a1046
+  signature: fc0aa441814295a7da3d9361d7a8e9884530c1c8a549aa7095005bf726b1c430
+  signed_at: '2026-10-28T21:35:07.733435+00:00'
