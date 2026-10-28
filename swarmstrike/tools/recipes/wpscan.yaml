@@ -34,5 +34,6 @@ parameters:
   description: WPScan API token for vulnerability data
   format: flag_value
   flag: --api-token
+  sensitive: true
 guidance: Outdated plugins are the most common route into a WordPress site. Enumerate users only if the
   contract authorizes it — a user list is personal data.

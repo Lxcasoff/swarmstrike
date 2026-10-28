@@ -178,6 +178,7 @@ def build_toolbox_tools(ctx: CampaignContext) -> list[Any]:
                 args["agent"], argv,
                 timeout_s=recipe.timeout_s,
                 needs_raw_socket=recipe.needs_raw_socket,
+                secrets=recipe.secret_values(supplied),
             )
         except ExecutionRefused as exc:
             return _refused(str(exc))

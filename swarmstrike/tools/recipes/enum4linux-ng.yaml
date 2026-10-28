@@ -28,6 +28,7 @@ parameters:
   description: Password
   format: flag_value
   flag: -p
+  sensitive: true
 - name: all
   type: boolean
   description: All simple enumeration

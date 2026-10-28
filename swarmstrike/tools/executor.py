@@ -15,7 +15,7 @@ import hashlib
 import json
 import shlex
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -30,6 +30,26 @@ from ..scope import Decision, ScopeGuard
 # agent is handed this much, which is plenty to reason over and cheap to read.
 AGENT_OUTPUT_LIMIT = 60_000
 DEFAULT_TIMEOUT_S = 900
+
+REDACTED = "«redacted»"
+
+
+def redact(value: str, secrets: Sequence[str]) -> str:
+    """Replace credential values wherever they appear.
+
+    Applied to the command before it is written anywhere — the audit chain, the
+    campaign database, the evidence file on disk — and to the output, because a
+    tool may echo the credential it was given straight back. A report built from
+    a campaign record should not hand the client's password back to them.
+    """
+    for secret in secrets:
+        if secret:
+            value = value.replace(secret, REDACTED)
+    return value
+
+
+def redact_argv(argv: Sequence[str], secrets: Sequence[str]) -> list[str]:
+    return [redact(part, secrets) for part in argv]
 
 # Binaries permitted as a pipeline stage after the first. They read stdin,
 # write stdout and reach no network, so they need no target to scope-check.
@@ -177,15 +197,22 @@ class ToolExecutor:
         *,
         timeout_s: int = DEFAULT_TIMEOUT_S,
         needs_raw_socket: bool = False,
+        secrets: Sequence[str] = (),
     ) -> ToolResult:
-        """Validate, run and record a command. Raises ExecutionRefused if denied."""
+        """Validate, run and record a command. Raises ExecutionRefused if denied.
+
+        `secrets` are values from this invocation that must not be written
+        down — a recipe supplies them from its sensitive parameters.
+        """
         self.killswitch.check()
 
         decision = self.guard.check_command(argv)
         if not decision.allowed:
-            self.audit.refusal(agent=agent, argv=argv, reason=decision.reason, rule=decision.rule)
+            safe = redact_argv(argv, secrets)
+            self.audit.refusal(agent=agent, argv=safe, reason=decision.reason,
+                               rule=decision.rule)
             self.kb.log_command(
-                agent=agent, argv=argv, decision="refused",
+                agent=agent, argv=safe, decision="refused",
                 reason=f"[{decision.rule}] {decision.reason}",
             )
             self._emit(
@@ -200,7 +227,8 @@ class ToolExecutor:
         async with self._semaphore:
             self.killswitch.check()
             await self._pace()
-            return await self._execute(agent, argv, timeout_s, needs_raw_socket, decision)
+            return await self._execute(agent, argv, timeout_s, needs_raw_socket,
+                                       decision, secrets)
 
     # ------------------------------------------------------------------
     async def _pace(self) -> None:
@@ -219,11 +247,13 @@ class ToolExecutor:
         timeout_s: int,
         needs_raw_socket: bool,
         decision: Decision,
+        secrets: Sequence[str] = (),
     ) -> ToolResult:
         self._sequence += 1
         full = self.policy.docker_argv(self.workspace, needs_raw_socket=needs_raw_socket) + argv
         tool_name = Path(argv[0]).name
         targets = self.guard.extract_targets(argv)
+        safe_argv = redact_argv(argv, secrets)
 
         self._emit(
             "agent.tool.start",
@@ -231,7 +261,7 @@ class ToolExecutor:
             tool=tool_name,
             targets=targets,
             sequence=self._sequence,
-            command=shlex.join(argv)[:300],
+            command=shlex.join(safe_argv)[:300],
         )
 
         started = time.monotonic()
@@ -251,14 +281,15 @@ class ToolExecutor:
             raw_err = (raw_err or b"") + f"\n[swarmstrike] killed after {timeout_s}s\n".encode()
 
         duration_ms = int((time.monotonic() - started) * 1000)
-        stdout = (raw_out or b"").decode("utf-8", errors="replace")
-        stderr = (raw_err or b"").decode("utf-8", errors="replace")
+        stdout = redact((raw_out or b"").decode("utf-8", errors="replace"), secrets)
+        stderr = redact((raw_err or b"").decode("utf-8", errors="replace"), secrets)
 
         # Keep the full output on disk as the evidence of record, and give the
         # agent a bounded slice of it.
         output_path = self.output_dir / f"{self._sequence:04d}-{agent}-{tool_name}.txt"
         output_path.write_text(
-            f"$ {shlex.join(argv)}\nexit={exit_code}\n\n{stdout}\n--- stderr ---\n{stderr}",
+            f"$ {shlex.join(safe_argv)}\nexit={exit_code}\n\n{stdout}"
+            f"\n--- stderr ---\n{stderr}",
             encoding="utf-8",
         )
 
@@ -267,7 +298,7 @@ class ToolExecutor:
 
         self.audit.command(
             agent=agent,
-            argv=argv,
+            argv=safe_argv,
             decision="allowed",
             reason=decision.reason,
             rule=decision.rule,
@@ -276,7 +307,7 @@ class ToolExecutor:
             stdout_sha256=hashlib.sha256((raw_out or b"")).hexdigest(),
         )
         self.kb.log_command(
-            agent=agent, argv=argv, decision="allowed", reason=decision.reason,
+            agent=agent, argv=safe_argv, decision="allowed", reason=decision.reason,
             exit_code=exit_code, duration_ms=duration_ms, output_path=str(output_path),
         )
 
@@ -292,7 +323,7 @@ class ToolExecutor:
         )
 
         return ToolResult(
-            argv=argv,
+            argv=safe_argv,
             exit_code=exit_code,
             stdout=visible,
             stderr=stderr[:AGENT_OUTPUT_LIMIT],

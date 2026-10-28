@@ -23,6 +23,7 @@ parameters:
   description: Token from a previous create
   format: positional
   position: 2
+  sensitive: true
 guidance: 'The way to prove a blind SSRF, XXE or injection: the target resolving your callback domain
   is evidence the payload executed. Use a domain the engagement controls, and record the hit with its
   timestamp.'

@@ -243,3 +243,39 @@ def test_auto_deny_explains_how_to_proceed(tmp_path: Path) -> None:
     ))
     assert not verdict.allowed
     assert "structured command" in verdict.reason
+
+
+# ---------------------------------------------------------------------------
+#  Redaction reaches the record, not just the return value
+# ---------------------------------------------------------------------------
+def test_a_refused_command_is_logged_without_its_password(tmp_path: Path) -> None:
+    executor, _ = build(tmp_path, structured_commands=True)
+    secret = "Sup3rSecret!"
+
+    with pytest.raises(ExecutionRefused):
+        run(executor.run(
+            "ad",
+            ["netexec", "-u", "pentest1", "-p", secret, "smb", "evil.test"],
+            secrets=[secret],
+        ))
+
+    # The audit chain holds the attempt, and must not hold the credential.
+    raw = (tmp_path / "audit.jsonl").read_text()
+    assert "evil.test" in raw, "the attempt itself must be recorded"
+    assert secret not in raw
+    assert "«redacted»" in raw
+
+    rows = executor.kb.conn.execute(
+        "SELECT argv FROM command_log WHERE campaign_id = 'CAMP'"
+    ).fetchall()
+    assert rows and secret not in rows[0]["argv"]
+
+
+def test_the_audit_chain_still_verifies_after_redaction(tmp_path: Path) -> None:
+    executor, _ = build(tmp_path, structured_commands=True)
+    with pytest.raises(ExecutionRefused):
+        run(executor.run("ad", ["netexec", "-p", "hunter2222", "smb", "evil.test"],
+                         secrets=["hunter2222"]))
+    intact, reason, count = executor.audit.verify()
+    assert intact, reason
+    assert count >= 1

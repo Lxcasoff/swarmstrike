@@ -25,6 +25,7 @@ parameters:
   description: Password
   format: flag_value
   flag: -p
+  sensitive: true
 - name: domain
   type: string
   description: Domain

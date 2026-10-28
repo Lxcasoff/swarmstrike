@@ -15,6 +15,7 @@ parameters:
   required: true
   format: positional
   position: 1
+  sensitive: true
 - name: mode
   type: enum
   description: -X exploit checks, -C crack, -V verify

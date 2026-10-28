@@ -396,6 +396,208 @@ def create_app() -> FastAPI:
         })
         return {"request_id": request_id, "decision": raw}
 
+
+    # ------------------------------------------------------------------
+    #  Fact graph
+    # ------------------------------------------------------------------
+    @app.get("/api/campaigns/{session_id}/facts")
+    async def list_facts(
+        session_id: str,
+        category: str | None = None,
+        confidence: str | None = None,
+        include_negative: bool = True,
+        include_deprecated: bool = False,
+    ) -> dict[str, Any]:
+        """The index: keys and summaries, no bodies."""
+        kb = dashboard.get(session_id).campaign.kb
+        rows = kb.list_facts(
+            category=category, confidence=confidence,
+            include_negative=include_negative, include_deprecated=include_deprecated,
+        )
+        tally: dict[str, int] = {}
+        for row in rows:
+            tally[row["category"]] = tally.get(row["category"], 0) + 1
+        return {"facts": rows, "by_category": tally, "total": len(rows)}
+
+    @app.get("/api/campaigns/{session_id}/fact")
+    async def get_fact(session_id: str, key: str) -> dict[str, Any]:
+        """One fact in full. The key contains a slash, so it comes as a query."""
+        fact = dashboard.get(session_id).campaign.kb.get_fact(key)
+        if fact is None:
+            raise HTTPException(404, f"no fact {key!r}")
+        return fact
+
+    @app.get("/api/campaigns/{session_id}/attack-paths")
+    async def attack_paths(session_id: str) -> dict[str, Any]:
+        kb = dashboard.get(session_id).campaign.kb
+        paths = kb.attack_paths()
+        return {
+            "paths": [
+                {"length": len(path), "steps": path} for path in paths
+            ],
+            "edges": kb.fact_edges(),
+        }
+
+    # ------------------------------------------------------------------
+    #  Roster
+    # ------------------------------------------------------------------
+    @app.get("/api/campaigns/{session_id}/agents")
+    async def list_agents(session_id: str) -> dict[str, Any]:
+        """Who is on this engagement, what they cover and what they have done."""
+        session = dashboard.get(session_id)
+        definitions = session.campaign._agents()  # noqa: SLF001 — same package
+        live = session.agents
+
+        rows = []
+        # The lead is not a subagent, so it is not in the roster the specialists
+        # are built into — but it is the agent an operator most wants to see.
+        lead = live.get("lead", {})
+        rows.append({
+            "agent": "lead",
+            **face("lead"),
+            "description": (
+                "Plans the engagement and delegates to the specialists. Reads "
+                "shared state; never touches a target itself."
+            ),
+            "model": "claude-opus-5-5",
+            "effort": "high",
+            "max_turns": 120,
+            "tool_count": 14,
+            "touches_targets": False,
+            "state": lead.get("state", "idle"),
+            "detail": lead.get("detail", ""),
+            "tools": lead.get("tools", 0),
+            "findings": lead.get("findings", 0),
+            "assets": lead.get("assets", 0),
+            "refusals": lead.get("refusals", 0),
+        })
+
+        for name, definition in sorted(definitions.items()):
+            state = live.get(name, {})
+            rows.append({
+                "agent": name,
+                **face(name),
+                "description": definition.description,
+                "model": definition.model or "inherit",
+                "effort": getattr(definition, "effort", None) or "default",
+                "max_turns": getattr(definition, "maxTurns", None),
+                "tool_count": len(definition.tools or []),
+                "touches_targets": any(
+                    t.startswith("mcp__toolbox__") for t in (definition.tools or [])
+                ),
+                "state": state.get("state", "idle"),
+                "detail": state.get("detail", ""),
+                "tools": state.get("tools", 0),
+                "findings": state.get("findings", 0),
+                "assets": state.get("assets", 0),
+                "refusals": state.get("refusals", 0),
+            })
+        return {"agents": rows}
+
+    # ------------------------------------------------------------------
+    #  Tool inventory
+    # ------------------------------------------------------------------
+    @app.get("/api/campaigns/{session_id}/tools")
+    async def list_tool_inventory(session_id: str) -> dict[str, Any]:
+        """Every recipe, and for each one whether this contract authorizes it.
+
+        A withheld tool is shown with the reason rather than hidden, because
+        "why can the swarm not do X here" is a question an operator asks and a
+        client asks afterwards.
+        """
+        campaign = dashboard.get(session_id).campaign
+        rows = []
+        for recipe in sorted(campaign.book.recipes.values(), key=lambda r: r.name):
+            allowed, reason = recipe.authorize(campaign.engagement)
+            rows.append({
+                "name": recipe.name,
+                "binary": recipe.binary,
+                "summary": recipe.summary,
+                "domains": recipe.domains,
+                "risk": recipe.risk.value,
+                "authorized": allowed,
+                "reason": reason,
+                "parameters": [
+                    {"name": p.name, "type": p.type, "required": p.required,
+                     "sensitive": p.sensitive, "description": p.description}
+                    for p in recipe.parameters
+                ],
+                "guidance": recipe.guidance,
+            })
+        return {
+            "tools": rows,
+            "total": len(rows),
+            "authorized": sum(1 for r in rows if r["authorized"]),
+            "invalid": campaign.book.errors,
+        }
+
+    # ------------------------------------------------------------------
+    #  Audit record
+    # ------------------------------------------------------------------
+    @app.get("/api/campaigns/{session_id}/audit")
+    async def read_audit(
+        session_id: str, event: str | None = None, limit: int = 200, offset: int = 0
+    ) -> dict[str, Any]:
+        """The hash-chained record, with its verification.
+
+        Credentials are redacted before anything is written here, so this is
+        safe to display; the verification is what makes it worth displaying.
+        """
+        audit = dashboard.get(session_id).campaign.audit
+        intact, reason, counted = audit.verify()
+        entries = audit.entries()
+        if event:
+            entries = [e for e in entries if e.event == event]
+
+        window = entries[offset : offset + max(1, min(limit, 1000))]
+        kinds: dict[str, int] = {}
+        for entry in audit.entries():
+            kinds[entry.event] = kinds.get(entry.event, 0) + 1
+
+        return {
+            "verified": intact,
+            "verification": reason,
+            "entries_total": counted,
+            "matching": len(entries),
+            "by_event": kinds,
+            "entries": [
+                {"seq": e.seq, "ts": e.ts, "event": e.event, "data": e.data,
+                 "hash": e.hash[:16]}
+                for e in window
+            ],
+        }
+
+    # ------------------------------------------------------------------
+    #  The contract itself
+    # ------------------------------------------------------------------
+    @app.get("/api/campaigns/{session_id}/contract")
+    async def read_contract(session_id: str) -> dict[str, Any]:
+        """What the swarm is authorized to do, as the running campaign sees it.
+
+        Shown in full including the signature: the signature is the proof, and
+        the key that produced it never leaves the operator's environment.
+        """
+        campaign = dashboard.get(session_id).campaign
+        engagement = campaign.engagement
+        verified, verification = engagement.verify()
+        window_open, window_reason = engagement.window.status()
+        roe = engagement.rules_of_engagement
+
+        return {
+            "verified": verified,
+            "verification": verification,
+            "window_open": window_open,
+            "window_reason": window_reason,
+            "engagement": engagement.engagement.model_dump(mode="json"),
+            "window": engagement.window.model_dump(mode="json"),
+            "scope": engagement.scope.model_dump(mode="json"),
+            "exclusions": engagement.exclusions.model_dump(mode="json"),
+            "rules_of_engagement": roe.model_dump(mode="json"),
+            "budget": engagement.budget.model_dump(mode="json"),
+            "integrity": engagement.integrity.model_dump(mode="json"),
+            "halt_on": engagement.contacts.halt_on,
+        }
+
     @app.get("/api/campaigns/{session_id}/report")
     async def report(session_id: str) -> HTMLResponse:
         from ..report.html import render_html

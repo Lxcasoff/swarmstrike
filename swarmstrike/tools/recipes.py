@@ -149,6 +149,11 @@ class Parameter(BaseModel):
     position: int | None = None
 
     default: Any = None
+    # Carries a credential. Its value is replaced before the command is
+    # written to the audit log, the campaign database, the evidence file on
+    # disk or the output handed back to the agent. Flag names cannot decide
+    # this: `-p` is a port list for nmap and a password for netexec.
+    sensitive: bool = False
     choices: list[str] = Field(default_factory=list)
     pattern: str | None = None
     minimum: int | None = None
@@ -293,6 +298,21 @@ class Recipe(BaseModel):
 
         argv += [value for _, value in sorted(positional)]
         return argv
+
+    def secret_values(self, supplied: dict[str, Any]) -> list[str]:
+        """The values in this invocation that must never be written down."""
+        secrets: list[str] = []
+        for parameter in self.parameters:
+            if not parameter.sensitive:
+                continue
+            raw = supplied.get(parameter.name, parameter.default)
+            if raw in (None, "", True, False):
+                continue
+            text = str(raw).strip()
+            # A one- or two-character secret would redact far too much.
+            if len(text) > 2:
+                secrets.append(text)
+        return secrets
 
     def authorize(self, engagement: Engagement) -> tuple[bool, str]:
         return authorize_risk(self.risk, engagement)

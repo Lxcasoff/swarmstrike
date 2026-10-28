@@ -1,43 +1,56 @@
 name: netexec-enum
 binary: netexec
 summary: Enumerate shares, users, policy and sessions from an authenticated foothold
-domains: [ad, network]
+domains:
+- ad
+- network
 risk: post_exploitation
 timeout_s: 1200
-guidance: >
-  Read-only enumeration from a foothold the engagement already established.
-  What you are mapping is the structure: group nesting that grants unintended
-  privilege, shares readable by everyone, password policy, stale enabled
-  accounts. Record the privilege path you can see — the path is the finding,
-  and you do not need to walk it to the end.
+guidance: 'Read-only enumeration from a foothold the engagement already established. What you are mapping
+  is the structure: group nesting that grants unintended privilege, shares readable by everyone, password
+  policy, stale enabled accounts. Record the privilege path you can see — the path is the finding, and
+  you do not need to walk it to the end.
+
+  '
 parameters:
-  - name: protocol
-    type: enum
-    choices: ["smb", "ldap", "winrm", "mssql"]
-    required: true
-    format: positional
-    position: 1
-    description: "Service to enumerate"
-  - name: target
-    type: string
-    required: true
-    format: positional
-    position: 2
-    description: "Host, address or range"
-  - name: username
-    type: string
-    format: flag_value
-    flag: "-u"
-    description: "Authenticated test account"
-  - name: password
-    type: string
-    format: flag_value
-    flag: "-p"
-    description: "Password"
-  - name: enumerate
-    type: enum
-    choices: ["--shares", "--users", "--groups", "--pass-pol", "--sessions", "--loggedon-users"]
-    required: true
-    format: positional
-    position: 3
-    description: "What to read"
+- name: protocol
+  type: enum
+  choices:
+  - smb
+  - ldap
+  - winrm
+  - mssql
+  required: true
+  format: positional
+  position: 1
+  description: Service to enumerate
+- name: target
+  type: string
+  required: true
+  format: positional
+  position: 2
+  description: Host, address or range
+- name: username
+  type: string
+  format: flag_value
+  flag: -u
+  description: Authenticated test account
+- name: password
+  type: string
+  format: flag_value
+  flag: -p
+  description: Password
+  sensitive: true
+- name: enumerate
+  type: enum
+  choices:
+  - --shares
+  - --users
+  - --groups
+  - --pass-pol
+  - --sessions
+  - --loggedon-users
+  required: true
+  format: positional
+  position: 3
+  description: What to read

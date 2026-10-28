@@ -392,6 +392,117 @@ pre{margin:0;padding:12px 14px;border-radius:10px;background:#070b16;border:1px 
   border-radius:8px;background:#ffffff06;border:1px solid var(--line-soft);
 }
 
+
+/* ── view navigation ── */
+#nav{display:flex;gap:4px;margin:0 0 16px;flex-wrap:wrap;border-bottom:1px solid var(--line);
+  padding-bottom:0}
+#nav button{
+  border:none;background:none;color:var(--ink-faint);padding:9px 14px;border-radius:9px 9px 0 0;
+  font-size:.8rem;font-weight:550;border-bottom:2px solid transparent;margin-bottom:-1px;
+}
+#nav button:hover{color:var(--ink-dim);background:#ffffff06}
+#nav button.on{color:var(--ink);border-bottom-color:var(--accent);background:#5b8cff0f}
+#nav button .n{
+  margin-left:7px;font-size:.66rem;padding:1px 6px;border-radius:999px;
+  background:#ffffff10;color:var(--ink-faint);font-variant-numeric:tabular-nums;
+}
+#nav button.on .n{background:#5b8cff22;color:#b9cdff}
+.view[hidden]{display:none}
+
+.toolbar{display:flex;gap:9px;align-items:center;padding:11px 16px;flex-wrap:wrap;
+  border-bottom:1px solid var(--line-soft)}
+.toolbar select,.toolbar input{
+  padding:7px 11px;border-radius:8px;border:1px solid var(--line);background:#0b1020;
+  color:var(--ink);font-family:inherit;font-size:.78rem;
+}
+.toolbar input{flex:1;min-width:150px;font-family:var(--mono)}
+.toolbar select:focus,.toolbar input:focus{outline:none;border-color:var(--accent)}
+.toolbar .grow{flex:1}
+.toolbar .stat{font-size:.74rem;color:var(--ink-faint);font-variant-numeric:tabular-nums}
+
+/* ── fact cards ── */
+.facts{display:grid;gap:9px;padding:14px 16px}
+.fact{
+  border:1px solid var(--line);border-radius:11px;background:#0c1222aa;padding:11px 14px;
+  cursor:pointer;transition:.14s;display:grid;gap:5px;
+}
+.fact:hover{border-color:#2d3b66;background:#101a30aa}
+.fact .top{display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+.fact .key{font-family:var(--mono);font-size:.76rem;color:#b9cdff}
+.fact .sum{font-size:.82rem;color:var(--ink-dim);line-height:1.5}
+.pill{font-size:.62rem;text-transform:uppercase;letter-spacing:.07em;padding:2px 8px;
+  border-radius:999px;font-weight:650;white-space:nowrap}
+.pill.confirmed{background:#34d39920;color:#9ff0cf}
+.pill.tentative{background:#fbbf2420;color:#fcd77f}
+.pill.deprecated{background:#ffffff0d;color:var(--ink-faint);text-decoration:line-through}
+.pill.neg{background:#f8717118;color:#ffb0b0}
+.pill.cat{background:#5b8cff18;color:#a8c2ff}
+.pill.risk{background:#ffffff0d;color:var(--ink-dim)}
+.pill.no{background:#f8717118;color:#ffb0b0}
+.pill.yes{background:#34d39918;color:#9ff0cf}
+
+/* ── attack paths ── */
+.paths{display:grid;gap:14px;padding:16px}
+.path{border:1px solid var(--line);border-radius:12px;background:#0c1222aa;overflow:hidden}
+.path header{padding:10px 15px;border-bottom:1px solid var(--line-soft);display:flex;gap:10px;
+  align-items:center;font-size:.78rem;color:var(--ink-dim)}
+.path header b{color:var(--ink)}
+.chain{padding:14px 16px;display:grid;gap:0}
+.step{display:grid;grid-template-columns:26px 1fr;gap:12px;align-items:start}
+.step .dot{
+  width:11px;height:11px;border-radius:50%;background:var(--accent);margin:5px auto 0;
+  box-shadow:0 0 0 3px #5b8cff22;position:relative;
+}
+.step:not(:last-child) .dot::after{
+  content:"";position:absolute;top:13px;left:50%;translate:-50% 0;width:2px;height:34px;
+  background:linear-gradient(var(--accent),#5b8cff33);
+}
+.step .body{padding-bottom:22px}
+.step .body .key{font-family:var(--mono);font-size:.74rem;color:#b9cdff}
+.step .body .sum{font-size:.81rem;color:var(--ink-dim);line-height:1.5;margin-top:3px}
+.step:last-child .dot{background:var(--crit);box-shadow:0 0 0 3px #fb3b5326}
+
+/* ── generic rows ── */
+.rows{display:grid;gap:7px;padding:14px 16px}
+.row2{border:1px solid var(--line);border-radius:10px;background:#0c1222aa;padding:10px 13px;
+  display:grid;gap:5px}
+.row2 .top{display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+.row2 .nm{font-size:.82rem;font-weight:600}
+.row2 .mono{font-family:var(--mono);font-size:.72rem;color:var(--ink-faint)}
+.row2 .sum{font-size:.78rem;color:var(--ink-dim);line-height:1.5}
+.row2.off{opacity:.55}
+.row2 .why{font-size:.72rem;color:#ffb0b0;line-height:1.5}
+
+/* ── audit ── */
+.audit{font-family:var(--mono);font-size:.72rem;max-height:620px;overflow:auto;padding:4px 0}
+.aud{display:grid;grid-template-columns:48px 150px 150px 1fr;gap:10px;padding:6px 16px;
+  border-bottom:1px solid var(--line-soft);align-items:start}
+.aud .sq{color:var(--ink-faint);text-align:right}
+.aud .ts{color:var(--ink-faint)}
+.aud .ev{color:#a8c2ff}
+.aud .dt{color:var(--ink-dim);word-break:break-word;white-space:pre-wrap}
+.verify{display:flex;gap:10px;align-items:center;padding:12px 16px;font-size:.8rem;
+  border-bottom:1px solid var(--line-soft)}
+.verify.ok{color:#9ff0cf;background:#34d39909}
+.verify.bad{color:#ffb4b4;background:#f8717112}
+
+/* ── contract ── */
+.contract{padding:16px;display:grid;gap:16px}
+.block{border:1px solid var(--line);border-radius:12px;background:#0c1222aa;overflow:hidden}
+.block h3{margin:0;padding:11px 15px;font-size:.7rem;text-transform:uppercase;
+  letter-spacing:.11em;color:var(--ink-faint);border-bottom:1px solid var(--line-soft)}
+.block .inner{padding:13px 15px}
+.kvg{display:grid;grid-template-columns:auto 1fr;gap:6px 16px;font-size:.79rem}
+.kvg dt{color:var(--ink-faint)}
+.kvg dd{margin:0;color:var(--ink-dim);word-break:break-word}
+.kvg dd.mono{font-family:var(--mono);font-size:.73rem}
+.flags{display:flex;flex-wrap:wrap;gap:7px}
+.flag{font-size:.72rem;padding:4px 10px;border-radius:999px;border:1px solid var(--line);
+  display:inline-flex;align-items:center;gap:6px}
+.flag.on{border-color:#f8717145;background:#f8717110;color:#ffc2c2}
+.flag.off{color:var(--ink-faint)}
+.flag::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+
 @media (max-width:1080px){.grid{grid-template-columns:1fr}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
@@ -454,22 +565,103 @@ pre{margin:0;padding:12px 14px;border-radius:10px;background:#070b16;border:1px 
 
   <!-- live --------------------------------------------------------- -->
   <main id="live" hidden>
+    <!-- Approvals sit outside the tabs on purpose: a pending request means an
+         agent is stopped, and it must not be possible to hide that. -->
     <section id="approvals"></section>
 
-    <div class="grid">
-      <section class="card">
-        <h2>War room <span class="count" id="roomCount"></span></h2>
-        <div class="room" id="room"></div>
-      </section>
-      <section class="card">
-        <h2>Activity <span class="count" id="feedCount"></span></h2>
-        <div class="feed" id="feed"></div>
-      </section>
-    </div>
+    <nav id="nav"></nav>
 
-    <section class="card" style="margin-top:18px">
-      <h2>Findings <span class="count" id="findCount"></span></h2>
-      <div id="findWrap"><p class="empty">Nothing proposed yet.</p></div>
+    <section class="view" data-view="warroom">
+      <div class="grid">
+        <section class="card">
+          <h2>War room <span class="count" id="roomCount"></span></h2>
+          <div class="room" id="room"></div>
+        </section>
+        <section class="card">
+          <h2>Activity <span class="count" id="feedCount"></span></h2>
+          <div class="feed" id="feed"></div>
+        </section>
+      </div>
+    </section>
+
+    <section class="view" data-view="findings" hidden>
+      <div class="card">
+        <h2>Findings <span class="count" id="findCount"></span></h2>
+        <div id="findWrap"><p class="empty">Nothing proposed yet.</p></div>
+      </div>
+    </section>
+
+    <section class="view" data-view="facts" hidden>
+      <div class="card">
+        <h2>Fact graph <span class="count" id="factCount"></span></h2>
+        <div class="toolbar">
+          <select id="factCat"><option value="">every category</option></select>
+          <select id="factConf">
+            <option value="">any confidence</option>
+            <option value="confirmed">confirmed</option>
+            <option value="tentative">tentative</option>
+          </select>
+          <label class="pill risk" style="cursor:pointer">
+            <input type="checkbox" id="factNeg" checked style="vertical-align:-1px">
+            dead ends
+          </label>
+          <div class="grow"></div>
+          <span class="stat" id="factStat"></span>
+        </div>
+        <div class="facts" id="factList"></div>
+      </div>
+    </section>
+
+    <section class="view" data-view="paths" hidden>
+      <div class="card">
+        <h2>Attack paths <span class="count" id="pathCount"></span></h2>
+        <div class="paths" id="pathList"></div>
+      </div>
+    </section>
+
+    <section class="view" data-view="agents" hidden>
+      <div class="card">
+        <h2>Agents <span class="count" id="agentCount"></span></h2>
+        <div class="rows" id="agentList"></div>
+      </div>
+    </section>
+
+    <section class="view" data-view="tools" hidden>
+      <div class="card">
+        <h2>Tool inventory <span class="count" id="toolCount"></span></h2>
+        <div class="toolbar">
+          <select id="toolRisk"><option value="">every risk tier</option></select>
+          <select id="toolAuth">
+            <option value="">authorized and withheld</option>
+            <option value="yes">authorized here</option>
+            <option value="no">withheld by the contract</option>
+          </select>
+          <input type="text" id="toolSearch" placeholder="search name or purpose">
+          <div class="grow"></div>
+          <span class="stat" id="toolStat"></span>
+        </div>
+        <div class="rows" id="toolList"></div>
+      </div>
+    </section>
+
+    <section class="view" data-view="audit" hidden>
+      <div class="card">
+        <h2>Audit record <span class="count" id="auditCount"></span></h2>
+        <div id="auditVerify"></div>
+        <div class="toolbar">
+          <select id="auditEvent"><option value="">every event</option></select>
+          <div class="grow"></div>
+          <span class="stat" id="auditStat"></span>
+        </div>
+        <div class="audit" id="auditList"></div>
+      </div>
+    </section>
+
+    <section class="view" data-view="contract" hidden>
+      <div class="card">
+        <h2>Engagement contract</h2>
+        <div class="contract" id="contractView"></div>
+      </div>
     </section>
   </main>
 </div>
@@ -702,6 +894,7 @@ function renderFindings() {
   const rows = [...state.findings.values()].sort((a, b) =>
     (b.cvss_score ?? 0) - (a.cvss_score ?? 0) || a.id.localeCompare(b.id));
   $("#findCount").textContent = `${rows.length} proposed`;
+  setCount("findings", rows.length);
 
   if (!rows.length) {
     $("#findWrap").replaceChildren(
@@ -951,6 +1144,443 @@ async function refreshApprovals() {
   } catch {}
 }
 
+
+/* ══════════════════════════════════════════════════════════════════════
+   Views
+
+   The screen inventory follows CyberStrikeAI's web console — findings,
+   agents, tool inventory, knowledge — with the two screens that belong to
+   this architecture rather than theirs: the fact graph with its derived
+   attack paths, and the contract that decides what any of it may do.
+   ══════════════════════════════════════════════════════════════════════ */
+const VIEWS = [
+  ["warroom",  "War room",       null],
+  ["findings", "Findings",       () => refreshFindings()],
+  ["facts",    "Facts",          () => loadFacts()],
+  ["paths",    "Attack paths",   () => loadPaths()],
+  ["agents",   "Agents",         () => loadAgents()],
+  ["tools",    "Tools",          () => loadTools()],
+  ["audit",    "Audit",          () => loadAudit()],
+  ["contract", "Contract",       () => loadContract()],
+];
+
+state.view = "warroom";
+state.counts = {};
+
+function renderNav() {
+  $("#nav").replaceChildren(...VIEWS.map(([name, label]) => {
+    const b = el("button", name === state.view ? "on" : "");
+    b.append(document.createTextNode(label));
+    const n = state.counts[name];
+    if (n !== undefined && n !== null) {
+      b.append(Object.assign(el("span", "n"), {textContent: String(n)}));
+    }
+    b.onclick = () => showView(name);
+    return b;
+  }));
+}
+
+function showView(name) {
+  state.view = name;
+  for (const section of document.querySelectorAll(".view")) {
+    section.hidden = section.dataset.view !== name;
+  }
+  renderNav();
+  const entry = VIEWS.find(([v]) => v === name);
+  if (entry && entry[2]) entry[2]();
+}
+
+function setCount(view, n) {
+  state.counts[view] = n;
+  renderNav();
+}
+
+async function api(path) {
+  const res = await fetch(`/api/campaigns/${state.session}${path}`);
+  if (!res.ok) throw new Error(`${res.status}`);
+  return res.json();
+}
+
+/* ── facts ──────────────────────────────────────────────────────────── */
+const FACT_CATS = ["target","auth","infra","business","access","finding","chain",
+                   "exploit","poc","detection","note"];
+
+function fillOnce(select, values) {
+  if (select.dataset.filled) return;
+  for (const v of values) select.append(Object.assign(el("option"), {value: v, textContent: v}));
+  select.dataset.filled = "1";
+}
+
+async function loadFacts() {
+  fillOnce($("#factCat"), FACT_CATS);
+  const cat = $("#factCat").value, conf = $("#factConf").value;
+  const neg = $("#factNeg").checked;
+
+  let data;
+  if (state.demo) {
+    data = {facts: DEMO_FACTS.filter((f) =>
+      (!cat || f.category === cat) && (!conf || f.confidence === conf)
+      && (neg || !f.negative)), total: 0};
+    data.total = data.facts.length;
+  } else {
+    try {
+      data = await api(`/facts?include_negative=${neg}`
+        + (cat ? `&category=${encodeURIComponent(cat)}` : "")
+        + (conf ? `&confidence=${encodeURIComponent(conf)}` : ""));
+    } catch { return; }
+  }
+
+  setCount("facts", data.total);
+  $("#factCount").textContent = `${data.total} established`;
+  $("#factStat").textContent = data.facts.length
+    ? `${data.facts.filter((f) => f.confidence === "confirmed").length} confirmed · `
+      + `${data.facts.filter((f) => f.negative).length} dead ends`
+    : "";
+
+  const host = $("#factList");
+  if (!data.facts.length) {
+    host.replaceChildren(Object.assign(el("p", "empty"),
+      {textContent: "Nothing recorded yet. Agents write facts as they establish them."}));
+    return;
+  }
+
+  host.replaceChildren(...data.facts.map((f) => {
+    const card = el("div", "fact");
+    const top = el("div", "top");
+    top.append(
+      Object.assign(el("span", "key"), {textContent: f.fact_key}),
+      Object.assign(el("span", `pill ${f.confidence}`), {textContent: f.confidence}),
+    );
+    if (f.negative) top.append(Object.assign(el("span", "pill neg"), {textContent: "dead end"}));
+    top.append(Object.assign(el("span", "pill cat"), {textContent: f.agent}));
+    card.append(top, Object.assign(el("div", "sum"), {textContent: f.summary}));
+    card.onclick = () => openFact(f.fact_key);
+    return card;
+  }));
+}
+
+async function openFact(key) {
+  let fact;
+  if (state.demo) {
+    fact = DEMO_FACTS.find((f) => f.fact_key === key);
+    if (fact) fact = {...fact, body: fact.body || "(no body recorded in the demo)",
+                      links: fact.links || {out: [], in: []}};
+  } else {
+    try { fact = await api(`/fact?key=${encodeURIComponent(key)}`); } catch { return; }
+  }
+  if (!fact) return;
+
+  $("#dTitle").textContent = fact.fact_key;
+  $("#dBadges").replaceChildren(
+    Object.assign(el("span", `pill ${fact.confidence}`), {textContent: fact.confidence}),
+    Object.assign(el("span", "pill cat"), {textContent: fact.category}),
+    ...(fact.negative ? [Object.assign(el("span", "pill neg"), {textContent: "dead end"})] : []),
+  );
+
+  const body = $("#dBody");
+  body.replaceChildren();
+
+  const head = el("div", "sec");
+  head.append(el("h4", null, "Summary"), el("p", null, fact.summary));
+  body.append(head);
+
+  const detail = el("div", "sec");
+  detail.append(el("h4", null, "Reproducible context"));
+  detail.append(Object.assign(el("pre"), {textContent: fact.body || "(empty)"}));
+  body.append(detail);
+
+  const links = [...(fact.links?.out || []).map((l) => ["out", l]),
+                 ...(fact.links?.in || []).map((l) => ["in", l])];
+  if (links.length) {
+    const sec = el("div", "sec");
+    sec.append(el("h4", null, "Links"));
+    for (const [dir, l] of links) {
+      const row = el("div", "turn");
+      row.append(Object.assign(el("div", "who"), {textContent:
+        dir === "out" ? `--${l.relation}--> ${l.dst_key}` : `${l.src_key} --${l.relation}-->`}));
+      if (l.note) row.append(el("p", null, l.note));
+      sec.append(row);
+    }
+    body.append(sec);
+  }
+
+  $("#drawer").classList.add("open");
+  $("#scrim").classList.add("open");
+}
+
+/* ── attack paths ───────────────────────────────────────────────────── */
+async function loadPaths() {
+  let data;
+  if (state.demo) data = {paths: DEMO_PATHS};
+  else { try { data = await api("/attack-paths"); } catch { return; } }
+
+  setCount("paths", data.paths.length);
+  $("#pathCount").textContent = `${data.paths.length} evidenced`;
+
+  const host = $("#pathList");
+  if (!data.paths.length) {
+    host.replaceChildren(Object.assign(el("p", "empty"), {textContent:
+      "No path yet. A path appears once facts are joined with 'enables' edges — "
+      + "each step evidenced, rather than asserted."}));
+    return;
+  }
+
+  host.replaceChildren(...data.paths.map((path, i) => {
+    const card = el("div", "path");
+    const head = el("header");
+    head.innerHTML = `<b>Path ${i + 1}</b> · ${path.length} steps · `
+      + `from <b>${esc(path.steps[0].fact_key)}</b> to <b>${esc(path.steps.at(-1).fact_key)}</b>`;
+    const chain = el("div", "chain");
+    for (const step of path.steps) {
+      const row = el("div", "step");
+      row.append(el("div", "dot"));
+      const bd = el("div", "body");
+      bd.append(Object.assign(el("div", "key"), {textContent: step.fact_key}),
+                Object.assign(el("div", "sum"), {textContent: step.summary}));
+      row.append(bd);
+      chain.append(row);
+    }
+    card.append(head, chain);
+    return card;
+  }));
+}
+
+/* ── agents ─────────────────────────────────────────────────────────── */
+async function loadAgents() {
+  let rows;
+  if (state.demo) {
+    rows = [...state.agents.values()].map((a) => ({
+      ...a, description: DEMO_AGENT_DESC[a.agent] || "",
+      model: a.role === "specialist" ? "claude-sonnet-5-5" : "claude-opus-5-5",
+      tool_count: a.role === "challenge" ? 7 : 19,
+      touches_targets: a.role !== "challenge",
+    }));
+  } else {
+    try { rows = (await api("/agents")).agents; } catch { return; }
+  }
+
+  setCount("agents", rows.length);
+  $("#agentCount").textContent = `${rows.length} on this engagement`;
+
+  $("#agentList").replaceChildren(...rows.map((a) => {
+    const card = el("div", "row2");
+    card.style.setProperty("--hue", a.hue || "220");
+    const top = el("div", "top");
+    top.append(
+      Object.assign(el("span"), {textContent: a.emoji || "🤖", style: "font-size:1.1rem"}),
+      Object.assign(el("span", "nm"), {textContent: a.label || a.agent}),
+      Object.assign(el("span", "pill cat"), {textContent: a.role || "specialist"}),
+      Object.assign(el("span", `pill ${a.touches_targets ? "no" : "yes"}`),
+        {textContent: a.touches_targets ? "touches targets" : "reads the record only"}),
+      Object.assign(el("span", "mono"), {textContent: a.model || ""}),
+    );
+    card.append(top);
+    if (a.description) card.append(Object.assign(el("div", "sum"), {textContent: a.description}));
+    card.append(Object.assign(el("div", "mono"), {textContent:
+      `${a.tools || 0} commands · ${a.findings || 0} findings · ${a.assets || 0} assets · `
+      + `${a.refusals || 0} refusals · ${a.tool_count || 0} tools available`}));
+    if (a.detail) card.append(Object.assign(el("div", "mono"), {textContent: a.detail}));
+    return card;
+  }));
+}
+
+/* ── tool inventory ─────────────────────────────────────────────────── */
+const RISK_TIERS = ["passive","active","intrusive","credentialed","privilege_escalation",
+                    "post_exploitation","lateral_movement","persistence","exfiltration",
+                    "evasion","destructive"];
+
+async function loadTools() {
+  fillOnce($("#toolRisk"), RISK_TIERS);
+  let data;
+  if (state.demo) data = DEMO_TOOLS;
+  else { try { data = await api("/tools"); } catch { return; } }
+
+  const risk = $("#toolRisk").value, auth = $("#toolAuth").value;
+  const needle = $("#toolSearch").value.trim().toLowerCase();
+  const rows = data.tools.filter((r) =>
+    (!risk || r.risk === risk)
+    && (!auth || (auth === "yes") === r.authorized)
+    && (!needle || r.name.includes(needle) || (r.summary || "").toLowerCase().includes(needle)));
+
+  setCount("tools", data.total);
+  $("#toolCount").textContent = `${data.authorized} of ${data.total} authorized here`;
+  $("#toolStat").textContent = `${rows.length} shown`;
+
+  $("#toolList").replaceChildren(...rows.map((r) => {
+    const card = el("div", r.authorized ? "row2" : "row2 off");
+    const top = el("div", "top");
+    top.append(
+      Object.assign(el("span", "nm"), {textContent: r.name}),
+      Object.assign(el("span", "mono"), {textContent: r.binary}),
+      Object.assign(el("span", "pill risk"), {textContent: r.risk.replace(/_/g, " ")}),
+      Object.assign(el("span", `pill ${r.authorized ? "yes" : "no"}`),
+        {textContent: r.authorized ? "authorized" : "withheld"}),
+      ...(r.domains || []).map((d) =>
+        Object.assign(el("span", "pill cat"), {textContent: d})),
+    );
+    card.append(top, Object.assign(el("div", "sum"), {textContent: r.summary}));
+    // A withheld tool shows why: "why can the swarm not do X here" is the
+    // question an operator asks, and a client asks afterwards.
+    if (!r.authorized) card.append(Object.assign(el("div", "why"), {textContent: r.reason}));
+    const sensitive = (r.parameters || []).filter((x) => x.sensitive).map((x) => x.name);
+    card.append(Object.assign(el("div", "mono"), {textContent:
+      `${(r.parameters || []).length} parameters`
+      + (sensitive.length ? ` · redacted: ${sensitive.join(", ")}` : "")}));
+    return card;
+  }));
+}
+
+/* ── audit ──────────────────────────────────────────────────────────── */
+async function loadAudit() {
+  let data;
+  if (state.demo) data = DEMO_AUDIT;
+  else { try { data = await api(`/audit?limit=300`
+        + ($("#auditEvent").value ? `&event=${encodeURIComponent($("#auditEvent").value)}` : "")); }
+        catch { return; } }
+
+  fillOnce($("#auditEvent"), Object.keys(data.by_event || {}).sort());
+  setCount("audit", data.entries_total);
+  $("#auditCount").textContent = `${data.entries_total} entries`;
+  $("#auditStat").textContent = `${data.matching} matching`;
+
+  const v = el("div", `verify ${data.verified ? "ok" : "bad"}`);
+  v.textContent = (data.verified ? "✓ " : "✗ ") + data.verification;
+  $("#auditVerify").replaceChildren(v);
+
+  $("#auditList").replaceChildren(...(data.entries || []).slice().reverse().map((e) => {
+    const row = el("div", "aud");
+    row.append(
+      Object.assign(el("div", "sq"), {textContent: e.seq}),
+      Object.assign(el("div", "ts"), {textContent: (e.ts || "").replace("T", " ").slice(0, 19)}),
+      Object.assign(el("div", "ev"), {textContent: e.event}),
+      Object.assign(el("div", "dt"), {textContent: JSON.stringify(e.data).slice(0, 400)}),
+    );
+    return row;
+  }));
+}
+
+/* ── contract ───────────────────────────────────────────────────────── */
+function flagRow(obj, keys) {
+  const wrap = el("div", "flags");
+  for (const k of keys) {
+    const on = !!obj[k];
+    wrap.append(Object.assign(el("span", `flag ${on ? "on" : "off"}`),
+      {textContent: `${k.replace(/_/g, " ")}: ${on ? "authorized" : "off"}`}));
+  }
+  return wrap;
+}
+
+function block(title, node) {
+  const b = el("div", "block");
+  b.append(el("h3", null, title));
+  const inner = el("div", "inner");
+  inner.append(node);
+  b.append(inner);
+  return b;
+}
+
+function kv(pairs) {
+  const dl = el("dl", "kvg");
+  for (const [k, val, mono] of pairs) {
+    if (val === undefined || val === null || val === "") continue;
+    dl.append(el("dt", null, k), Object.assign(el("dd", mono ? "mono" : ""),
+      {textContent: String(val)}));
+  }
+  return dl;
+}
+
+async function loadContract() {
+  let c;
+  if (state.demo) c = DEMO_CONTRACT;
+  else { try { c = await api("/contract"); } catch { return; } }
+
+  const roe = c.rules_of_engagement || {};
+  const host = $("#contractView");
+  host.replaceChildren();
+
+  const status = el("div", `verify ${c.verified ? "ok" : "bad"}`);
+  status.textContent = (c.verified ? "✓ " : "✗ ") + c.verification
+    + ` · testing window ${c.window_open ? "open" : "closed"} — ${c.window_reason}`;
+  host.append(status);
+
+  host.append(block("Authorization", kv([
+    ["Client", c.engagement?.client],
+    ["Mission", c.engagement?.mission],
+    ["Engagement", c.engagement?.id],
+    ["Authorized by", c.engagement?.authorized_by
+      ? `${c.engagement.authorized_by.name}, ${c.engagement.authorized_by.role}` : ""],
+    ["On file", c.engagement?.authorized_by?.authorization_ref],
+    ["Window", `${c.window?.start} → ${c.window?.end}`, true],
+    ["Fingerprint", c.integrity?.fingerprint, true],
+  ])));
+
+  const scope = el("div");
+  scope.append(kv([
+    ["Domains", (c.scope?.domains || []).map((d) =>
+      d.name + (d.include_subdomains ? " (+subdomains)" : "")).join(", "), true],
+    ["Ranges", (c.scope?.cidrs || []).join(", "), true],
+    ["Addresses", (c.scope?.ips || []).join(", "), true],
+    ["Applications", (c.scope?.urls || []).join(", "), true],
+  ]));
+  host.append(block("In scope", scope));
+
+  const exc = c.exclusions || {};
+  const anyExc = (exc.domains || []).length || (exc.ips || []).length
+    || (exc.cidrs || []).length || (exc.url_paths || []).length;
+  host.append(block("Excluded — never touched", anyExc ? kv([
+    ["Domains", (exc.domains || []).map((d) => d.name).join(", "), true],
+    ["Addresses", (exc.ips || []).join(", "), true],
+    ["Ranges", (exc.cidrs || []).join(", "), true],
+    ["URL paths", (exc.url_paths || []).join(", "), true],
+  ]) : Object.assign(el("p", "empty"), {textContent: "No exclusions were defined."})));
+
+  const basics = el("div");
+  basics.append(kv([
+    ["Intensity", roe.intensity],
+    ["Rate limit", roe.max_requests_per_second ? `${roe.max_requests_per_second}/s` : ""],
+    ["Concurrent tools", roe.max_concurrent_tools],
+    ["Exploitation", roe.exploitation?.allowed
+      ? (roe.exploitation.stop_at_proof ? "authorized, stops at proof" : "authorized") : "not authorized"],
+    ["Authentication testing", roe.credential_testing?.allowed ? "authorized" : "not authorized"],
+  ]));
+  basics.append(Object.assign(el("div"), {style: "margin-top:12px"}));
+  basics.append(flagRow({
+    destructive: !roe.forbid_destructive,
+    denial_of_service: !roe.forbid_denial_of_service,
+    data_modification: !roe.forbid_data_modification,
+    persistence: !roe.forbid_persistence,
+    social_engineering: !roe.forbid_social_engineering,
+  }, ["destructive","denial_of_service","data_modification","persistence","social_engineering"]));
+  host.append(block("Rules of engagement", basics));
+
+  const rt = roe.red_team || {};
+  const rtNode = el("div");
+  rtNode.append(Object.assign(el("p", "sum"), {textContent: rt.enabled
+    ? "Red team mode is on. Each phase below is its own switch."
+    : "This is a penetration test, not a red team engagement — every phase below is off "
+      + "and the agents for them do not exist on this campaign."}));
+  rtNode.append(Object.assign(el("div"), {style: "margin-top:10px"}));
+  rtNode.append(flagRow(rt, ["post_exploitation","privilege_escalation","lateral_movement",
+                             "persistence","exfiltration_simulation","evasion"]));
+  host.append(block("Red team phases", rtNode));
+
+  const ae = roe.arbitrary_execution || {};
+  const aeNode = el("div");
+  aeNode.append(flagRow(ae, ["structured_commands","pipelines","shell","scripts"]));
+  aeNode.append(Object.assign(el("p", "sum"), {style: "margin-top:11px", textContent:
+    "Structured commands and pipelines are checked the same way a recipe is. Shell and "
+    + "scripts cannot be checked statically, so each use needs a human decision — that "
+    + "part is not a setting."}));
+  host.append(block("Ad-hoc execution", aeNode));
+
+  if ((c.halt_on || []).length) {
+    const halt = el("ul");
+    halt.style.cssText = "margin:0;padding-left:20px;font-size:.8rem;color:var(--ink-dim);line-height:1.7";
+    for (const h of c.halt_on) halt.append(el("li", null, h));
+    host.append(block("Halt immediately on", halt));
+  }
+}
+
 /* ── socket ─────────────────────────────────────────────────────── */
 function connect(sessionId) {
   const proto = location.protocol === "https:" ? "wss" : "ws";
@@ -1101,10 +1731,185 @@ async function startCampaign() {
   state.session = session.id;
   state.agents = new Map((session.agents||[]).map((a) => [a.agent, a]));
   $("#launch").hidden = true; $("#live").hidden = false;
-  renderRoom(); renderHeader(session);
+  renderRoom(); renderHeader(session); renderNav(); showView("warroom");
   connect(session.id);
 }
 
+
+
+/* ── demo fixtures ──────────────────────────────────────────────────────
+   Enough to show every view without a backend. Nothing here is fetched and
+   no target is contacted. */
+const DEMO_FACTS = [
+  {fact_key:"target/primary-domain", category:"target", confidence:"confirmed", negative:0,
+   agent:"recon", summary:"example.pf is the client's main site, behind Cloudflare, nginx 1.18 at origin",
+   body:"Resolved via subfinder + dnsx.\nA record -> 203.0.113.10\nServer header: nginx/1.18.0"},
+  {fact_key:"target/admin-subdomain", category:"target", confidence:"confirmed", negative:0,
+   agent:"recon", summary:"admin.example.pf resolves to the same origin and is not behind the CDN",
+   body:"Found in certificate transparency logs; never linked from the main site."},
+  {fact_key:"finding/upload", category:"finding", confidence:"confirmed", negative:0,
+   agent:"web", summary:"unrestricted file upload at /avatar accepts .php, served from /uploads",
+   body:"POST /avatar with Content-Type image/jpeg and a .php extension returns 200.\nThe file is then reachable at /uploads/<name>.php and executed.",
+   links:{out:[{relation:"enables", dst_key:"access/webshell", note:"webshell"}], in:[]}},
+  {fact_key:"access/webshell", category:"access", confidence:"confirmed", negative:0,
+   agent:"web", summary:"code execution as www-data on the origin host, proven with id",
+   body:"GET /uploads/x.php?c=id -> uid=33(www-data) gid=33(www-data)",
+   links:{out:[{relation:"enables", dst_key:"auth/db-creds", note:""}],
+          in:[{relation:"enables", src_key:"finding/upload", note:"webshell"}]}},
+  {fact_key:"auth/db-creds", category:"auth", confidence:"confirmed", negative:0,
+   agent:"code", summary:"database credentials readable in /var/www/config.php from the webshell",
+   body:"define('DB_USER','app'); define('DB_PASS','«redacted»');\nRedacted here because the recipe marks the parameter sensitive.",
+   links:{out:[{relation:"enables", dst_key:"access/customer-db", note:""}],
+          in:[{relation:"enables", src_key:"access/webshell", note:""}]}},
+  {fact_key:"access/customer-db", category:"access", confidence:"confirmed", negative:0,
+   agent:"network", summary:"full read on the customer database from the origin host",
+   body:"mysql -h 127.0.0.1 -u app lists 14 tables including customers (48,201 rows).\nRow count only; no data was read.",
+   links:{out:[], in:[{relation:"enables", src_key:"auth/db-creds", note:""}]}},
+  {fact_key:"note/no-sqli-on-login", category:"note", confidence:"confirmed", negative:1,
+   agent:"web", summary:"login form is parameterised — no injection, checked with 40 payloads and timing",
+   body:"Dead end recorded so nobody spends the budget here again."},
+  {fact_key:"note/waf-blocks-ffuf", category:"note", confidence:"confirmed", negative:1,
+   agent:"web", summary:"content discovery above 20 req/s is rate-limited by the CDN, not the origin",
+   body:"Dead end at speed; useful at 5 req/s."},
+  {fact_key:"finding/tls-legacy", category:"finding", confidence:"confirmed", negative:0,
+   agent:"crypto", summary:"TLS 1.0 and 1.1 still negotiated on 203.0.113.10:443",
+   body:"sslscan output: TLSv1.0 enabled, TLSv1.1 enabled."},
+  {fact_key:"finding/search-timing", category:"finding", confidence:"tentative", negative:0,
+   agent:"web", summary:"timing on /search varies ~4s with a sleep payload, but host jitter is 300ms",
+   body:"Three samples only. Not established; the skeptic refuted it."},
+  {fact_key:"detection/scan-not-alerted", category:"detection", confidence:"confirmed", negative:1,
+   agent:"detection", summary:"the full port scan at 14:12 produced no alert in the client's SIEM",
+   body:"Correlated against the audit log timestamp. A loud action that nobody saw."},
+];
+
+const DEMO_PATHS = [
+  {length:5, steps:[
+    {fact_key:"finding/upload", summary:"unrestricted file upload at /avatar accepts .php", confidence:"confirmed"},
+    {fact_key:"access/webshell", summary:"code execution as www-data on the origin host", confidence:"confirmed"},
+    {fact_key:"auth/db-creds", summary:"database credentials readable in /var/www/config.php", confidence:"confirmed"},
+    {fact_key:"access/customer-db", summary:"full read on the customer database", confidence:"confirmed"},
+  ]},
+];
+
+const DEMO_AGENT_DESC = {
+  lead:"Plans the engagement and delegates. Reads shared state; never touches a target.",
+  recon:"Maps the attack surface: domains, hosts, services, exposed assets and public footprint",
+  network:"Network and infrastructure: exposed services, versions, known vulnerabilities, segmentation",
+  web:"Web application security: OWASP Top 10, authentication, authorization and business logic",
+  api:"API security: REST and GraphQL, object-level authorization, rate limiting, token handling",
+  cloud:"Cloud configuration: IAM, storage exposure, network policy, metadata and key management",
+  ad:"Active Directory and internal networks: Kerberos, delegation, ACLs, credential exposure",
+  code:"Source code, secrets, dependencies and supply chain",
+  crypto:"Transport security, certificates and cryptographic implementation",
+  skeptic:"Argues that a finding is a false positive. Every finding passes through it.",
+  arbiter:"Rules on contested findings and sets the severity the client sees.",
+  reporter:"Writes the client deliverable from the confirmed findings.",
+};
+
+const DEMO_TOOLS = {total:73, authorized:41, invalid:{}, tools:[
+  {name:"subfinder", binary:"subfinder", risk:"passive", authorized:true, domains:["recon"],
+   summary:"Passive subdomain enumeration from public sources", reason:"passive actions are within the engagement",
+   parameters:[{name:"domain",required:true,sensitive:false},{name:"max_time",required:false,sensitive:false}]},
+  {name:"nmap", binary:"nmap", risk:"active", authorized:true, domains:["network","recon"],
+   summary:"Port, service and version discovery", reason:"active actions are within the engagement",
+   parameters:[{name:"target",required:true,sensitive:false},{name:"ports",required:false,sensitive:false},
+               {name:"scan_type",required:false,sensitive:false},{name:"scripts",required:false,sensitive:false}]},
+  {name:"nuclei", binary:"nuclei", risk:"active", authorized:true, domains:["web","api","network","cloud"],
+   summary:"Templated vulnerability checks against a target", reason:"active actions are within the engagement",
+   parameters:[{name:"target",required:true,sensitive:false},{name:"severity",required:false,sensitive:false}]},
+  {name:"sqlmap", binary:"sqlmap", risk:"intrusive", authorized:true, domains:["web","api"],
+   summary:"Confirm a SQL injection and identify the backend", reason:"exploitation authorized, stopping at proof",
+   parameters:[{name:"url",required:true,sensitive:false},{name:"parameter",required:false,sensitive:false}]},
+  {name:"netexec-auth", binary:"netexec", risk:"credentialed", authorized:false, domains:["ad","network"],
+   summary:"Validate a named test credential against a service",
+   reason:"authentication testing is not authorized (rules_of_engagement.credential_testing.allowed is false)",
+   parameters:[{name:"protocol",required:true,sensitive:false},{name:"target",required:true,sensitive:false},
+               {name:"username",required:true,sensitive:false},{name:"password",required:false,sensitive:true}]},
+  {name:"netexec-exec", binary:"netexec", risk:"lateral_movement", authorized:false, domains:["ad","network"],
+   summary:"Execute a command on a reachable host with authorized credentials",
+   reason:"lateral_movement is a red team action and this engagement is not a red team engagement (rules_of_engagement.red_team.enabled is false)",
+   parameters:[{name:"target",required:true,sensitive:false},{name:"password",required:false,sensitive:true}]},
+  {name:"certipy-find", binary:"certipy", risk:"privilege_escalation", authorized:false, domains:["ad"],
+   summary:"Identify exploitable Active Directory Certificate Services templates",
+   reason:"privilege_escalation is a red team action and this engagement is not a red team engagement",
+   parameters:[{name:"target",required:true,sensitive:false},{name:"password",required:false,sensitive:true}]},
+  {name:"canary-egress", binary:"curl", risk:"exfiltration", authorized:false, domains:["network","cloud"],
+   summary:"Test whether a planted canary file can leave the network",
+   reason:"exfiltration is a red team action and this engagement is not a red team engagement",
+   parameters:[{name:"url",required:true,sensitive:false},{name:"canary_file",required:true,sensitive:false}]},
+  {name:"prowler", binary:"prowler", risk:"passive", authorized:true, domains:["cloud"],
+   summary:"Cloud security posture assessment", reason:"passive actions are within the engagement",
+   parameters:[{name:"provider",required:true,sensitive:false},{name:"severity",required:false,sensitive:false}]},
+  {name:"wpscan", binary:"wpscan", risk:"active", authorized:true, domains:["web"],
+   summary:"WordPress core, plugin and theme vulnerability scan", reason:"active actions are within the engagement",
+   parameters:[{name:"url",required:true,sensitive:false},{name:"api_token",required:false,sensitive:true}]},
+]};
+
+const DEMO_AUDIT = {
+  verified:true, entries_total:9,
+  verification:"chain intact across 9 entries (head 5e8671140d671e67…)",
+  matching:9,
+  by_event:{"campaign.open":1,"tool.command":4,"tool.refused":1,"approval.requested":1,
+            "approval.decided":1,"debate.ruling":1},
+  entries:[
+    {seq:0, ts:"2026-10-28T14:12:01Z", event:"campaign.open", hash:"a1b2c3d4e5f60718",
+     data:{client:"Commune de Faa'a", authorized_by:{name:"J. Doe", role:"RSSI"},
+           contract_fingerprint:"b8090518655653b9"}},
+    {seq:1, ts:"2026-10-28T14:12:09Z", event:"tool.command", hash:"b2c3d4e5f6071829",
+     data:{agent:"recon", argv:["subfinder","-silent","-all","-d","example.pf"], exit_code:0, duration_ms:2810}},
+    {seq:2, ts:"2026-10-28T14:12:33Z", event:"tool.command", hash:"c3d4e5f607182930",
+     data:{agent:"network", argv:["nmap","-Pn","--open","-sV","203.0.113.10"], exit_code:0, duration_ms:4600}},
+    {seq:3, ts:"2026-10-28T14:13:02Z", event:"tool.refused", hash:"d4e5f60718293041",
+     data:{agent:"network", argv:["nmap","-Pn","8.8.8.8"], rule:"scope.miss",
+           reason:"8.8.8.8 (8.8.8.8) is not in any in-scope range"}},
+    {seq:4, ts:"2026-10-28T14:13:40Z", event:"tool.command", hash:"e5f6071829304152",
+     data:{agent:"ad", argv:["netexec","-u","pentest1","-p","«redacted»","smb","203.0.113.12"],
+           exit_code:0, duration_ms:900}},
+    {seq:5, ts:"2026-10-28T14:14:11Z", event:"approval.requested", hash:"f607182930415263",
+     data:{agent:"web", kind:"shell", request_id:"7c1f2a9b4e55",
+           detail:"for p in 8080 8443 9000; do curl -sS -o /dev/null -w \"$p %{http_code}\\n\" https://admin.example.pf:$p/; done",
+           risk_notes:["names in-scope target admin.example.pf",
+                       "a shell command cannot be checked statically: this runs contained, approved and logged, not scope-enforced"]}},
+    {seq:6, ts:"2026-10-28T14:14:29Z", event:"approval.decided", hash:"0718293041526374",
+     data:{request_id:"7c1f2a9b4e55", decision:"allow", decided_by:"operator (dashboard)",
+           reason:"checked the hosts"}},
+    {seq:7, ts:"2026-10-28T14:14:31Z", event:"tool.command", hash:"1829304152637485",
+     data:{agent:"web", argv:["sh","-c","for p in 8080 8443 9000; do curl …"], exit_code:0, duration_ms:1240}},
+    {seq:8, ts:"2026-10-28T14:16:02Z", event:"debate.ruling", hash:"2930415263748596",
+     data:{finding_id:"F-001", verdict:"confirmed", confidence:0.95, severity:"critical",
+           stances:{"peer:api":"support", skeptic:"support"}}},
+  ],
+};
+
+const DEMO_CONTRACT = {
+  verified:true, verification:"contract verified (b8090518655653b9…)",
+  window_open:true, window_reason:"within engagement window",
+  engagement:{id:"ENG-2026-014", client:"Commune de Faa'a", mission:"Audit de sécurité externe",
+    reference:"SECTIE-FR-RAU-2026-014",
+    authorized_by:{name:"J. Doe", role:"RSSI", email:"rssi@example.pf",
+      authorization_ref:"Lettre de mission 2026-014", signed_on:"2026-10-01"}},
+  window:{start:"2026-10-20T08:00:00+02:00", end:"2026-10-31T18:00:00+02:00"},
+  scope:{domains:[{name:"example.pf", include_subdomains:true}], cidrs:["203.0.113.0/28"],
+         ips:[], urls:["https://www.example.pf/"]},
+  exclusions:{domains:[{name:"webmail.example.pf"}], ips:["203.0.113.1"], cidrs:[],
+              url_paths:["/payment/"]},
+  rules_of_engagement:{
+    intensity:"normal", max_requests_per_second:10, max_concurrent_tools:4,
+    forbid_destructive:true, forbid_denial_of_service:true, forbid_data_modification:true,
+    forbid_persistence:true, forbid_social_engineering:true,
+    exploitation:{allowed:true, stop_at_proof:true},
+    credential_testing:{allowed:false, accounts:[]},
+    red_team:{enabled:false, post_exploitation:false, privilege_escalation:false,
+              lateral_movement:false, persistence:false, exfiltration_simulation:false,
+              evasion:false},
+    arbitrary_execution:{structured_commands:true, pipelines:true, shell:true, scripts:false},
+  },
+  budget:{max_usd:25, max_tokens:20000000, max_wall_clock_minutes:180},
+  integrity:{fingerprint:"b8090518655653b98e94004f656591eabb82f5b2aa23b294a6b1af6052229f1c"},
+  halt_on:["service outage or degradation observed on a target",
+           "asset discovered in scope that appears to belong to a third party",
+           "exposure of personal data or credentials"],
+};
 
 /* ── demo mode ──────────────────────────────────────────────────────
    `?demo=1` replays a scripted stream through the same renderers the live
@@ -1266,6 +2071,10 @@ function runDemo() {
   $("#launch").hidden = true;
   $("#live").hidden = false;
   $("#subtitle").textContent = "demonstration — no target is contacted";
+  renderNav(); if (state.view === "warroom") showView("warroom");
+  setCount("facts", DEMO_FACTS.length); setCount("paths", DEMO_PATHS.length);
+  setCount("tools", DEMO_TOOLS.total); setCount("audit", DEMO_AUDIT.entries_total);
+  setCount("agents", 12);
 
   for (const name of ["lead","recon","network","web","api","cloud","ad","code","crypto",
                       "skeptic","arbiter","reporter"]) {
@@ -1316,6 +2125,15 @@ function runDemo() {
     $("#feed").replaceChildren(); runDemo();
   }, 38000);
 }
+
+for (const id of ["#factCat", "#factConf", "#factNeg"]) {
+  document.querySelector(id).onchange = () => loadFacts();
+}
+for (const id of ["#toolRisk", "#toolAuth"]) {
+  document.querySelector(id).onchange = () => loadTools();
+}
+$("#toolSearch").oninput = () => loadTools();
+$("#auditEvent").onchange = () => loadAudit();
 
 $("#verifyBtn").onclick = verifyContract;
 $("#startBtn").onclick = startCampaign;

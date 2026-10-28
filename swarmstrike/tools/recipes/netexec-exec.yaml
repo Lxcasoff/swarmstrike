@@ -1,46 +1,53 @@
 name: netexec-exec
 binary: netexec
 summary: Execute a command on a reachable host with authorized credentials
-domains: [ad, network]
+domains:
+- ad
+- network
 risk: lateral_movement
 timeout_s: 900
-guidance: >
-  This demonstrates that one foothold reaches another host, which is the point
-  of the lateral movement phase. Run the smallest command that proves reach —
-  whoami or hostname — and stop. Anything that changes the host is refused by
-  the contract. Record every host you touch: the cleanup section of the report
-  has to account for all of them.
+guidance: 'This demonstrates that one foothold reaches another host, which is the point of the lateral
+  movement phase. Run the smallest command that proves reach — whoami or hostname — and stop. Anything
+  that changes the host is refused by the contract. Record every host you touch: the cleanup section of
+  the report has to account for all of them.
+
+  '
 parameters:
-  - name: protocol
-    type: enum
-    choices: ["smb", "winrm", "ssh"]
-    required: true
-    format: positional
-    position: 1
-    description: "Execution channel"
-  - name: target
-    type: string
-    required: true
-    format: positional
-    position: 2
-    description: "Host or address, inside the authorized scope"
-  - name: username
-    type: string
-    required: true
-    format: flag_value
-    flag: "-u"
-    description: "Authorized account"
-  - name: password
-    type: string
-    format: flag_value
-    flag: "-p"
-    description: "Password"
-  - name: command
-    type: string
-    required: true
-    format: flag_value
-    flag: "-x"
-    pattern: "(whoami|hostname|id|uname -a|ipconfig|ifconfig)( /[a-z]+)?"
-    description: >
-      Proof-of-reach command. Restricted to commands that read identity or
-      host name: proving reach does not require running anything else.
+- name: protocol
+  type: enum
+  choices:
+  - smb
+  - winrm
+  - ssh
+  required: true
+  format: positional
+  position: 1
+  description: Execution channel
+- name: target
+  type: string
+  required: true
+  format: positional
+  position: 2
+  description: Host or address, inside the authorized scope
+- name: username
+  type: string
+  required: true
+  format: flag_value
+  flag: -u
+  description: Authorized account
+- name: password
+  type: string
+  format: flag_value
+  flag: -p
+  description: Password
+  sensitive: true
+- name: command
+  type: string
+  required: true
+  format: flag_value
+  flag: -x
+  pattern: (whoami|hostname|id|uname -a|ipconfig|ifconfig)( /[a-z]+)?
+  description: 'Proof-of-reach command. Restricted to commands that read identity or host name: proving
+    reach does not require running anything else.
+
+    '

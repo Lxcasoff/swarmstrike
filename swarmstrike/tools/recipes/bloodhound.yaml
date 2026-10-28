@@ -27,6 +27,7 @@ parameters:
   description: Password
   format: flag_value
   flag: -p
+  sensitive: true
 - name: nameserver
   type: string
   description: Domain controller address

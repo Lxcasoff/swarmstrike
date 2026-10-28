@@ -1,36 +1,45 @@
 name: netexec-auth
 binary: netexec
 summary: Validate a named test credential against a service
-domains: [ad, network]
+domains:
+- ad
+- network
 risk: credentialed
 timeout_s: 900
-guidance: >
-  Only for the test accounts the contract names. Never against real user
-  accounts: a lockout on a production account is an outage you caused. This
-  validates a credential — it does not guess one, and unbounded guessing is
-  refused.
+guidance: 'Only for the test accounts the contract names. Never against real user accounts: a lockout
+  on a production account is an outage you caused. This validates a credential — it does not guess one,
+  and unbounded guessing is refused.
+
+  '
 parameters:
-  - name: protocol
-    type: enum
-    choices: ["smb", "ldap", "winrm", "mssql", "ssh", "rdp"]
-    required: true
-    format: positional
-    position: 1
-    description: "Service to authenticate against"
-  - name: target
-    type: string
-    required: true
-    format: positional
-    position: 2
-    description: "Host, address or range"
-  - name: username
-    type: string
-    required: true
-    format: flag_value
-    flag: "-u"
-    description: "A username the contract lists as a test account"
-  - name: password
-    type: string
-    format: flag_value
-    flag: "-p"
-    description: "Password for that test account"
+- name: protocol
+  type: enum
+  choices:
+  - smb
+  - ldap
+  - winrm
+  - mssql
+  - ssh
+  - rdp
+  required: true
+  format: positional
+  position: 1
+  description: Service to authenticate against
+- name: target
+  type: string
+  required: true
+  format: positional
+  position: 2
+  description: Host, address or range
+- name: username
+  type: string
+  required: true
+  format: flag_value
+  flag: -u
+  description: A username the contract lists as a test account
+- name: password
+  type: string
+  format: flag_value
+  flag: -p
+  description: Password for that test account
+  sensitive: true

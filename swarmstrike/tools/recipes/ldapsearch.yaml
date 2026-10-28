@@ -1,39 +1,43 @@
 name: ldapsearch
 binary: ldapsearch
 summary: Query a directory for objects, attributes and access control
-domains: [ad]
+domains:
+- ad
 risk: post_exploitation
 timeout_s: 900
-defaults: ["-x", "-LLL"]
-guidance: >
-  The directory tells you how privilege is actually arranged, which is where
-  the serious findings are: delegation settings, certificate templates,
-  object ACLs that let an ordinary user grant themselves rights. Read; never
-  write.
+defaults:
+- -x
+- -LLL
+guidance: 'The directory tells you how privilege is actually arranged, which is where the serious findings
+  are: delegation settings, certificate templates, object ACLs that let an ordinary user grant themselves
+  rights. Read; never write.
+
+  '
 parameters:
-  - name: host
-    type: string
-    required: true
-    format: flag_value
-    flag: "-H"
-    description: "LDAP URI, e.g. ldap://dc01.example.org"
-  - name: bind_dn
-    type: string
-    format: flag_value
-    flag: "-D"
-    description: "Bind DN for the test account"
-  - name: password
-    type: string
-    format: flag_value
-    flag: "-w"
-    description: "Bind password"
-  - name: base
-    type: string
-    format: flag_value
-    flag: "-b"
-    description: "Search base, e.g. DC=example,DC=org"
-  - name: filter
-    type: string
-    format: positional
-    position: 1
-    description: "LDAP filter, e.g. (objectClass=user)"
+- name: host
+  type: string
+  required: true
+  format: flag_value
+  flag: -H
+  description: LDAP URI, e.g. ldap://dc01.example.org
+- name: bind_dn
+  type: string
+  format: flag_value
+  flag: -D
+  description: Bind DN for the test account
+- name: password
+  type: string
+  format: flag_value
+  flag: -w
+  description: Bind password
+  sensitive: true
+- name: base
+  type: string
+  format: flag_value
+  flag: -b
+  description: Search base, e.g. DC=example,DC=org
+- name: filter
+  type: string
+  format: positional
+  position: 1
+  description: LDAP filter, e.g. (objectClass=user)

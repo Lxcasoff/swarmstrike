@@ -97,7 +97,14 @@ class KnowledgeBase:
     def __init__(self, path: str | Path) -> None:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.conn = sqlite3.connect(self.path, isolation_level=None)
+        # check_same_thread=False because the campaign writes from the event
+        # loop while the dashboard reads from whichever thread serves the
+        # request. CPython's sqlite3 is built serialized, so sharing one
+        # autocommit connection is safe; without this the reader raises and an
+        # endpoint fails mid-campaign.
+        self.conn = sqlite3.connect(
+            self.path, isolation_level=None, check_same_thread=False
+        )
         self.conn.row_factory = sqlite3.Row
         self.conn.executescript(SCHEMA.read_text(encoding="utf-8"))
         self._campaign_id: str | None = None

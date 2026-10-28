@@ -259,3 +259,45 @@ def test_available_to_narrows_by_contract_and_domain() -> None:
 
     web_only = book.available_to(contract(), domains=["web"])
     assert web_only and all("web" in r.domains for r in web_only)
+
+
+# ---------------------------------------------------------------------------
+#  Credential redaction
+# ---------------------------------------------------------------------------
+def test_sensitive_parameters_are_collected_for_redaction() -> None:
+    book = load_recipes()
+    recipe = book.get("netexec-auth")
+    supplied = {"protocol": "smb", "target": "dc.example.org",
+                "username": "pentest1", "password": "Sup3rSecret!"}
+
+    # The value reaches the command, because the tool needs it.
+    assert "Sup3rSecret!" in recipe.build_argv(supplied)
+    # And it is reported as something that must not be written down.
+    assert recipe.secret_values(supplied) == ["Sup3rSecret!"]
+
+
+def test_a_flag_name_does_not_decide_sensitivity() -> None:
+    # -p is a port list for nmap and a password for netexec, so the recipe
+    # declares it rather than the executor guessing from the flag.
+    book = load_recipes()
+    assert book.get("nmap").secret_values({"target": "a.example.org", "ports": "80,443"}) == []
+
+
+def test_short_values_are_not_treated_as_secrets() -> None:
+    # Redacting a one-character value would blank out unrelated output.
+    book = load_recipes()
+    recipe = book.get("netexec-auth")
+    assert recipe.secret_values({"protocol": "smb", "target": "h.example.org",
+                                 "username": "u", "password": "ab"}) == []
+
+
+def test_every_credential_parameter_in_the_book_is_marked() -> None:
+    # A new recipe that takes a password and forgets the flag would write it
+    # into the audit log, so this fails rather than letting that ship.
+    names = {"password", "api_token", "api_key", "token", "secret", "passphrase"}
+    missed: list[str] = []
+    for recipe in load_recipes().recipes.values():
+        for parameter in recipe.parameters:
+            if parameter.name in names and not parameter.sensitive:
+                missed.append(f"{recipe.name}.{parameter.name}")
+    assert not missed, f"unmarked credential parameters: {missed}"
