@@ -1,0 +1,34 @@
+name: http-request
+binary: curl
+summary: Send one crafted HTTP request and return the full response
+domains: [web, api]
+risk: active
+timeout_s: 60
+defaults: ["-sS", "-i", "--max-time", "30"]
+guidance: >
+  This is how you prove a web or API finding. The request and response become
+  the evidence a client's own engineer replays, so send the smallest request
+  that demonstrates the problem and attach the exchange verbatim.
+parameters:
+  - name: url
+    type: string
+    required: true
+    format: positional
+    position: 1
+    description: "Full URL"
+  - name: method
+    type: enum
+    choices: ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]
+    format: flag_value
+    flag: "-X"
+    description: "HTTP method"
+  - name: header
+    type: string
+    format: repeat
+    flag: "-H"
+    description: "Headers, comma-separated. Each becomes its own -H."
+  - name: body
+    type: string
+    format: flag_value
+    flag: "--data-raw"
+    description: "Request body, sent exactly as given"

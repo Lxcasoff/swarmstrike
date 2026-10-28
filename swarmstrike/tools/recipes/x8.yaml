@@ -1,0 +1,22 @@
+# Ported from the CyberStrikeAI tool recipes (Apache-2.0); see NOTICE.
+# Risk tier and contract gating are swarmstrike additions.
+name: x8
+binary: x8
+summary: Hidden parameter discovery by response differential
+domains:
+- web
+- api
+risk: active
+timeout_s: 1200
+parameters:
+- name: url
+  type: string
+  description: Target URL
+  required: true
+  format: flag_value
+  flag: -u
+- name: wordlist
+  type: string
+  description: Parameter wordlist
+  format: flag_value
+  flag: -w

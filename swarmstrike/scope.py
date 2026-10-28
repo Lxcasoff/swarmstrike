@@ -292,6 +292,15 @@ class ScopeGuard:
             )
         return ALLOW
 
+    def check_forbidden(self, argv: list[str]) -> Decision:
+        """Categorical refusals only, with no scope check.
+
+        For a pipeline stage after the first: it reads stdin, reaches no
+        network and names no target, so there is nothing to place in scope —
+        but it must still not be a destructive command.
+        """
+        return self._check_forbidden(" ".join(argv))
+
     def extract_targets(self, argv: list[str]) -> list[str]:
         """Pull every token out of a command line that names a network target."""
         targets: list[str] = []

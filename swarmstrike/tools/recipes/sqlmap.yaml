@@ -1,0 +1,36 @@
+name: sqlmap
+binary: sqlmap
+summary: Confirm a SQL injection and identify the backend
+domains: [web, api]
+risk: intrusive
+timeout_s: 2400
+defaults: ["--batch", "--disable-coloring", "--level", "2", "--risk", "1"]
+guidance: >
+  Confirms injection and stops there. The write and shell options
+  (--os-shell, --file-write, --os-pwn) are refused by the contract, and
+  rightly: the finding is that injection exists, and reading the client's
+  data to prove it creates the incident the test was meant to prevent.
+  Use --dbs at most to show the scope of access.
+parameters:
+  - name: url
+    type: string
+    required: true
+    format: flag_value
+    flag: "-u"
+    description: "Target URL including the parameter under test"
+  - name: data
+    type: string
+    format: flag_value
+    flag: "--data"
+    description: "POST body"
+  - name: parameter
+    type: string
+    format: flag_value
+    flag: "-p"
+    pattern: "[A-Za-z0-9_,\\[\\]-]{1,80}"
+    description: "Parameter to test, rather than all of them"
+  - name: enumerate_databases
+    type: boolean
+    format: flag
+    flag: "--dbs"
+    description: "List database names to evidence the extent of access"

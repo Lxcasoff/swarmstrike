@@ -1,0 +1,34 @@
+# Ported from the CyberStrikeAI tool recipes (Apache-2.0); see NOTICE.
+# Risk tier and contract gating are swarmstrike additions.
+name: smbmap
+binary: smbmap
+summary: Enumerate SMB shares and the access a credential grants
+domains:
+- ad
+- network
+risk: post_exploitation
+timeout_s: 900
+parameters:
+- name: host
+  type: string
+  description: Host
+  required: true
+  format: flag_value
+  flag: -H
+- name: username
+  type: string
+  description: Test account
+  format: flag_value
+  flag: -u
+- name: password
+  type: string
+  description: Password
+  format: flag_value
+  flag: -p
+- name: domain
+  type: string
+  description: Domain
+  format: flag_value
+  flag: -d
+guidance: A share readable by everyone that holds credentials, backups or personal data is a common and
+  serious finding. Report what is readable and why it matters; do not copy the contents out.

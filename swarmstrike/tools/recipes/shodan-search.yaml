@@ -1,0 +1,25 @@
+# Ported from the CyberStrikeAI tool recipes (Apache-2.0); see NOTICE.
+# Risk tier and contract gating are swarmstrike additions.
+name: shodan-search
+binary: shodan
+summary: Shodan internet-wide search for exposed assets
+domains:
+- recon
+risk: passive
+timeout_s: 300
+parameters:
+- name: query
+  type: string
+  description: Shodan query string
+  required: true
+  format: positional
+  position: 1
+- name: limit
+  type: integer
+  description: Maximum results
+  format: flag_value
+  flag: --limit
+  minimum: 1
+  maximum: 1000
+guidance: Queries Shodan's index rather than the client, so nothing reaches the target. Needs an API key
+  in the toolbox. Results are third-party observations and can be stale — confirm anything you act on.

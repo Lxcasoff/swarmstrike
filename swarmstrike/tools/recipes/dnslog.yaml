@@ -1,0 +1,28 @@
+# Ported from the CyberStrikeAI tool recipes (Apache-2.0); see NOTICE.
+# Risk tier and contract gating are swarmstrike additions.
+name: dnslog
+binary: dnslog
+summary: Out-of-band callback listener for blind vulnerabilities
+domains:
+- web
+- api
+risk: active
+timeout_s: 300
+parameters:
+- name: action
+  type: enum
+  description: Create a callback domain, or poll it for hits
+  required: true
+  format: positional
+  position: 1
+  choices:
+  - create
+  - poll
+- name: token
+  type: string
+  description: Token from a previous create
+  format: positional
+  position: 2
+guidance: 'The way to prove a blind SSRF, XXE or injection: the target resolving your callback domain
+  is evidence the payload executed. Use a domain the engagement controls, and record the hit with its
+  timestamp.'

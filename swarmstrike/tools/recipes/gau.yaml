@@ -1,0 +1,21 @@
+# Ported from the CyberStrikeAI tool recipes (Apache-2.0); see NOTICE.
+# Risk tier and contract gating are swarmstrike additions.
+name: gau
+binary: gau
+summary: Historical URLs for a domain from public archives
+domains:
+- recon
+- web
+risk: passive
+timeout_s: 600
+defaults:
+- --subs
+parameters:
+- name: target
+  type: string
+  description: Domain
+  required: true
+  format: positional
+  position: 1
+guidance: Archived URLs often reveal endpoints and parameters that are no longer linked but still answer.
+  A rich source of forgotten attack surface.

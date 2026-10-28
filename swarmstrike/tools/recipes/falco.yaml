@@ -1,0 +1,27 @@
+# Ported from the CyberStrikeAI tool recipes (Apache-2.0); see NOTICE.
+# Risk tier and contract gating are swarmstrike additions.
+name: falco
+binary: falco
+summary: Read runtime security events from a monitored cluster
+domains:
+- cloud
+risk: passive
+timeout_s: 900
+defaults:
+- -o
+- json_output=true
+parameters:
+- name: rules
+  type: string
+  description: Rules file
+  format: flag_value
+  flag: -r
+- name: duration
+  type: integer
+  description: Seconds to observe
+  format: flag_value
+  flag: -M
+  minimum: 10
+  maximum: 600
+guidance: Observational. Useful during a red team phase to see which of your own actions the client's
+  runtime monitoring registered.

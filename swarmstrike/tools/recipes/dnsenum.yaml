@@ -1,0 +1,23 @@
+# Ported from the CyberStrikeAI tool recipes (Apache-2.0); see NOTICE.
+# Risk tier and contract gating are swarmstrike additions.
+name: dnsenum
+binary: dnsenum
+summary: DNS record and zone enumeration
+domains:
+- recon
+risk: active
+timeout_s: 900
+defaults:
+- --nocolor
+parameters:
+- name: target
+  type: string
+  description: Domain to enumerate
+  required: true
+  format: positional
+  position: 1
+- name: no_reverse
+  type: boolean
+  description: Skip reverse lookups
+  format: flag
+  flag: --noreverse

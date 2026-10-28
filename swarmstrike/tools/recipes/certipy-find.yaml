@@ -1,0 +1,35 @@
+name: certipy-find
+binary: certipy
+summary: Identify exploitable Active Directory Certificate Services templates
+domains: [ad]
+risk: privilege_escalation
+timeout_s: 1200
+defaults: ["find", "-stdout"]
+guidance: >
+  Certificate template misconfiguration is one of the most reliable privilege
+  paths in a Windows estate, and it is a configuration finding rather than a
+  software bug — which means remediation is specific and achievable. Report
+  the vulnerable template, who can enrol, and what that grants.
+parameters:
+  - name: target
+    type: string
+    required: true
+    format: flag_value
+    flag: "-target"
+    description: "Domain controller or CA host"
+  - name: username
+    type: string
+    format: flag_value
+    flag: "-u"
+    description: "Authenticated test account"
+  - name: password
+    type: string
+    format: flag_value
+    flag: "-p"
+    description: "Password"
+  - name: vulnerable_only
+    type: boolean
+    format: flag
+    flag: "-vulnerable"
+    default: true
+    description: "Report only templates with an identified weakness"

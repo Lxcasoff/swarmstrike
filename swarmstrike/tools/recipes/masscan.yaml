@@ -1,0 +1,34 @@
+# Ported from the CyberStrikeAI tool recipes (Apache-2.0); see NOTICE.
+# Risk tier and contract gating are swarmstrike additions.
+name: masscan
+binary: masscan
+summary: High-rate port sweep across large ranges
+domains:
+- network
+risk: active
+timeout_s: 1800
+needs_raw_socket: true
+parameters:
+- name: target
+  type: string
+  description: Address range
+  required: true
+  format: positional
+  position: 1
+- name: ports
+  type: string
+  description: Ports
+  required: true
+  format: flag_value
+  flag: -p
+  pattern: '[0-9,\-]{1,64}'
+- name: rate
+  type: integer
+  description: Packets per second. Keep it low on production networks.
+  format: flag_value
+  flag: --rate
+  default: 500
+  minimum: 10
+  maximum: 5000
+guidance: Fast enough to disrupt a network if the rate is wrong. The contract's rate limit exists because
+  the client's systems are in production — start low.

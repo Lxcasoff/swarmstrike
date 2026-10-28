@@ -1,0 +1,26 @@
+# Ported from the CyberStrikeAI tool recipes (Apache-2.0); see NOTICE.
+# Risk tier and contract gating are swarmstrike additions.
+name: jaeles
+binary: jaeles
+summary: Signature-based vulnerability scanning
+domains:
+- web
+- api
+risk: active
+timeout_s: 1800
+defaults:
+- scan
+- --quiet
+parameters:
+- name: url
+  type: string
+  description: Target URL
+  required: true
+  format: flag_value
+  flag: -u
+- name: signatures
+  type: string
+  description: Signature selector
+  format: flag_value
+  flag: -s
+  pattern: '[a-zA-Z0-9/_*.-]{1,80}'

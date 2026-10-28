@@ -1,0 +1,39 @@
+# Ported from the CyberStrikeAI tool recipes (Apache-2.0); see NOTICE.
+# Risk tier and contract gating are swarmstrike additions.
+name: feroxbuster
+binary: feroxbuster
+summary: Recursive content discovery
+domains:
+- web
+risk: active
+timeout_s: 1800
+defaults:
+- --silent
+- --json
+parameters:
+- name: url
+  type: string
+  description: Target URL
+  required: true
+  format: flag_value
+  flag: -u
+- name: wordlist
+  type: string
+  description: Wordlist path
+  format: flag_value
+  flag: -w
+- name: depth
+  type: integer
+  description: Recursion depth
+  format: flag_value
+  flag: -d
+  minimum: 1
+  maximum: 4
+- name: rate
+  type: integer
+  description: Requests per second
+  format: flag_value
+  flag: --rate-limit
+  minimum: 1
+  maximum: 200
+guidance: Recursion multiplies request volume quickly. Keep depth shallow and the rate inside the contract.

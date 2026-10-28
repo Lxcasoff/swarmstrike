@@ -1,0 +1,35 @@
+# Ported from the CyberStrikeAI tool recipes (Apache-2.0); see NOTICE.
+# Risk tier and contract gating are swarmstrike additions.
+name: enum4linux-ng
+binary: enum4linux-ng
+summary: SMB and RPC enumeration of a Windows host or domain
+domains:
+- ad
+- network
+risk: post_exploitation
+timeout_s: 1200
+defaults:
+- -oJ
+- /work/output/enum4linux
+parameters:
+- name: target
+  type: string
+  description: Host or address
+  required: true
+  format: positional
+  position: 1
+- name: username
+  type: string
+  description: Test account
+  format: flag_value
+  flag: -u
+- name: password
+  type: string
+  description: Password
+  format: flag_value
+  flag: -p
+- name: all
+  type: boolean
+  description: All simple enumeration
+  format: flag
+  flag: -A

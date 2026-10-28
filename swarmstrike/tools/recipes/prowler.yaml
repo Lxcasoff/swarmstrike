@@ -1,0 +1,40 @@
+# Ported from the CyberStrikeAI tool recipes (Apache-2.0); see NOTICE.
+# Risk tier and contract gating are swarmstrike additions.
+name: prowler
+binary: prowler
+summary: Cloud security posture assessment
+domains:
+- cloud
+risk: passive
+timeout_s: 2400
+defaults:
+- -M
+- json
+- -q
+parameters:
+- name: provider
+  type: enum
+  description: Cloud provider
+  required: true
+  format: positional
+  position: 1
+  choices:
+  - aws
+  - azure
+  - gcp
+  - kubernetes
+- name: checks
+  type: string
+  description: Specific checks
+  format: flag_value
+  flag: -c
+  pattern: '[a-zA-Z0-9_,.-]{1,120}'
+- name: severity
+  type: string
+  description: Minimum severity
+  format: flag_value
+  flag: --severity
+  pattern: '[a-z,]{1,40}'
+guidance: 'Reads configuration with the read-only credentials the engagement was given. The serious findings
+  are permissions: a path from a low-privileged principal to an administrative one is critical even when
+  no data has moved.'

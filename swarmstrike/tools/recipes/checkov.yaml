@@ -1,0 +1,30 @@
+# Ported from the CyberStrikeAI tool recipes (Apache-2.0); see NOTICE.
+# Risk tier and contract gating are swarmstrike additions.
+name: checkov
+binary: checkov
+summary: Infrastructure-as-code misconfiguration scan
+domains:
+- cloud
+- code
+risk: passive
+timeout_s: 1200
+defaults:
+- -o
+- json
+- --quiet
+parameters:
+- name: directory
+  type: string
+  description: Path in the campaign workspace
+  required: true
+  format: flag_value
+  flag: -d
+- name: framework
+  type: string
+  description: terraform, cloudformation, kubernetes, ...
+  format: flag_value
+  flag: --framework
+  pattern: '[a-z_,]{1,60}'
+guidance: Finds the cause behind an exposure that was observed from outside. Pair your findings with the
+  cloud specialist's and leave a note — a client who gets both the symptom and the line of Terraform that
+  caused it fixes it once.

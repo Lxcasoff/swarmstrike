@@ -1,0 +1,24 @@
+# Ported from the CyberStrikeAI tool recipes (Apache-2.0); see NOTICE.
+# Risk tier and contract gating are swarmstrike additions.
+name: kube-hunter
+binary: kube-hunter
+summary: Probe a Kubernetes cluster for exposed components
+domains:
+- cloud
+risk: active
+timeout_s: 1800
+defaults:
+- --report
+- json
+parameters:
+- name: remote
+  type: string
+  description: Cluster address, in scope
+  required: true
+  format: flag_value
+  flag: --remote
+- name: active_tests
+  type: boolean
+  description: Run active tests. These interact with the cluster.
+  format: flag
+  flag: --active

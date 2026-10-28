@@ -1,0 +1,19 @@
+# Ported from the CyberStrikeAI tool recipes (Apache-2.0); see NOTICE.
+# Risk tier and contract gating are swarmstrike additions.
+name: linpeas
+binary: linpeas.sh
+summary: Enumerate Linux privilege escalation paths from a foothold
+domains:
+- network
+risk: privilege_escalation
+timeout_s: 1200
+parameters:
+- name: output
+  type: string
+  description: Sections to run
+  format: flag_value
+  flag: -o
+  pattern: '[a-zA-Z0-9_,]{1,60}'
+guidance: 'Read-only enumeration that reports candidate paths. It is noisy in output and quiet on the
+  network. Confirm a candidate before reporting it: most of what it flags yellow is not exploitable in
+  context.'

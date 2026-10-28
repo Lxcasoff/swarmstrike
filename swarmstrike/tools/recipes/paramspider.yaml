@@ -1,0 +1,17 @@
+# Ported from the CyberStrikeAI tool recipes (Apache-2.0); see NOTICE.
+# Risk tier and contract gating are swarmstrike additions.
+name: paramspider
+binary: paramspider
+summary: Mine parameter names from web archives
+domains:
+- web
+- api
+risk: passive
+timeout_s: 600
+parameters:
+- name: domain
+  type: string
+  description: Domain
+  required: true
+  format: flag_value
+  flag: -d

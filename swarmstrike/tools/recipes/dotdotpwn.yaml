@@ -1,0 +1,36 @@
+# Ported from the CyberStrikeAI tool recipes (Apache-2.0); see NOTICE.
+# Risk tier and contract gating are swarmstrike additions.
+name: dotdotpwn
+binary: dotdotpwn
+summary: Path traversal fuzzing
+domains:
+- web
+risk: active
+timeout_s: 1200
+defaults:
+- -q
+parameters:
+- name: module
+  type: enum
+  description: Protocol module
+  required: true
+  format: flag_value
+  flag: -m
+  choices:
+  - http
+  - http-url
+  - ftp
+  - tftp
+- name: host
+  type: string
+  description: Target host
+  required: true
+  format: flag_value
+  flag: -h
+- name: depth
+  type: integer
+  description: Traversal depth
+  format: flag_value
+  flag: -d
+  minimum: 1
+  maximum: 8

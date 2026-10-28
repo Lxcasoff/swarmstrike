@@ -1,0 +1,28 @@
+# Ported from the CyberStrikeAI tool recipes (Apache-2.0); see NOTICE.
+# Risk tier and contract gating are swarmstrike additions.
+name: rpcclient
+binary: rpcclient
+summary: Query a Windows host over RPC
+domains:
+- ad
+risk: post_exploitation
+timeout_s: 900
+parameters:
+- name: host
+  type: string
+  description: Host
+  required: true
+  format: positional
+  position: 1
+- name: user
+  type: string
+  description: user%password, or -U '' for a null session
+  format: flag_value
+  flag: -U
+- name: command
+  type: string
+  description: RPC command, e.g. enumdomusers or querydominfo
+  format: flag_value
+  flag: -c
+  pattern: '[a-zA-Z0-9 _.\-]{1,120}'
+guidance: A null session that returns the user list is itself a finding.

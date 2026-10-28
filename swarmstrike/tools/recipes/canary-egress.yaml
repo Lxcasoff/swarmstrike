@@ -1,0 +1,29 @@
+name: canary-egress
+binary: curl
+summary: Test whether a planted canary file can leave the network
+domains: [network, cloud]
+risk: exfiltration
+timeout_s: 120
+defaults: ["-sS", "-o", "/dev/null", "-w", "%{http_code} %{size_upload}\\n", "--max-time", "30"]
+guidance: >
+  Proves an egress path exists using a file the engagement planted, never the
+  client's data. The finding is that the path works and that data loss
+  prevention did not stop it — moving real records to demonstrate it would
+  create the breach the test exists to prevent. Record which channel
+  succeeded and which was blocked; both are useful to the client.
+parameters:
+  - name: url
+    type: string
+    required: true
+    format: positional
+    position: 1
+    description: "Collection endpoint the engagement controls"
+  - name: canary_file
+    type: string
+    required: true
+    format: flag_value
+    flag: "--data-binary"
+    pattern: "@/work/canary/[A-Za-z0-9._-]{1,64}"
+    description: >
+      Canary file to send, which must live under /work/canary in the campaign
+      workspace. Any other path is refused.

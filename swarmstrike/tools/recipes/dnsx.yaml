@@ -1,0 +1,24 @@
+name: dnsx
+binary: dnsx
+summary: Resolve hostnames and read DNS records
+domains: [recon, network]
+risk: passive
+timeout_s: 600
+defaults: ["-silent", "-json"]
+guidance: >
+  Resolution tells you which enumerated names are actually live, and the record
+  types tell you who runs them. A name pointing at a third party's
+  infrastructure is not the client's to test — flag it rather than scanning it.
+parameters:
+  - name: host
+    type: string
+    required: true
+    format: flag_value
+    flag: "-d"
+    description: "Hostname or comma-separated hostnames"
+  - name: record
+    type: enum
+    choices: ["a", "aaaa", "cname", "ns", "txt", "mx", "soa", "ptr"]
+    format: flag
+    flag: "-a"
+    description: "Record type to request"

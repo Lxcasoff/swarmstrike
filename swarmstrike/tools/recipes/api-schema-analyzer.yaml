@@ -1,0 +1,20 @@
+# Ported from the CyberStrikeAI tool recipes (Apache-2.0); see NOTICE.
+# Risk tier and contract gating are swarmstrike additions.
+name: api-schema-analyzer
+binary: spectral
+summary: Lint an OpenAPI schema for security problems
+domains:
+- api
+risk: passive
+timeout_s: 600
+defaults:
+- lint
+- -f
+- json
+parameters:
+- name: path
+  type: string
+  description: Schema path in the workspace
+  required: true
+  format: positional
+  position: 1

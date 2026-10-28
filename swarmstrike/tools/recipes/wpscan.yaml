@@ -1,0 +1,38 @@
+# Ported from the CyberStrikeAI tool recipes (Apache-2.0); see NOTICE.
+# Risk tier and contract gating are swarmstrike additions.
+name: wpscan
+binary: wpscan
+summary: WordPress core, plugin and theme vulnerability scan
+domains:
+- web
+risk: active
+timeout_s: 1800
+defaults:
+- --format
+- json
+- --no-banner
+parameters:
+- name: url
+  type: string
+  description: WordPress site URL
+  required: true
+  format: flag_value
+  flag: --url
+- name: enumerate
+  type: enum
+  description: vp vulnerable plugins, vt vulnerable themes, u users, ap all plugins
+  format: flag_value
+  flag: -e
+  choices:
+  - vp
+  - vt
+  - u
+  - ap
+  - at
+- name: api_token
+  type: string
+  description: WPScan API token for vulnerability data
+  format: flag_value
+  flag: --api-token
+guidance: Outdated plugins are the most common route into a WordPress site. Enumerate users only if the
+  contract authorizes it — a user list is personal data.

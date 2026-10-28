@@ -1,0 +1,30 @@
+# Ported from the CyberStrikeAI tool recipes (Apache-2.0); see NOTICE.
+# Risk tier and contract gating are swarmstrike additions.
+name: john
+binary: john
+summary: Offline password hash cracking
+domains:
+- ad
+- network
+risk: credentialed
+timeout_s: 2400
+parameters:
+- name: hashfile
+  type: string
+  description: Hash file in the workspace
+  required: true
+  format: positional
+  position: 1
+- name: wordlist
+  type: string
+  description: Wordlist path
+  format: flag_value
+  flag: --wordlist
+- name: format
+  type: string
+  description: Hash format
+  format: flag_value
+  flag: --format
+  pattern: '[a-zA-Z0-9_-]{1,40}'
+guidance: Offline and against hashes the engagement already obtained legitimately. That a service account's
+  password cracks in minutes is the finding; the plaintext itself does not belong in the report.

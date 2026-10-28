@@ -1,0 +1,39 @@
+name: nuclei
+binary: nuclei
+summary: Templated vulnerability checks against a target
+domains: [web, api, network, cloud]
+risk: active
+timeout_s: 2400
+defaults: ["-silent", "-jsonl", "-no-interactsh"]
+guidance: >
+  Broad coverage, and a high false-positive rate on anything it cannot verify
+  directly. A template name is not evidence: confirm the finding yourself
+  before proposing it, and expect the skeptic to ask how you did. Keep severity
+  filtered or you will drown in informational output.
+parameters:
+  - name: target
+    type: string
+    required: true
+    format: flag_value
+    flag: "-u"
+    description: "URL or host to test"
+  - name: severity
+    type: string
+    format: flag_value
+    flag: "-severity"
+    pattern: "[a-z,]{1,60}"
+    default: "medium,high,critical"
+    description: "Comma-separated severities to include"
+  - name: tags
+    type: string
+    format: flag_value
+    flag: "-tags"
+    pattern: "[a-z0-9,_-]{1,120}"
+    description: "Restrict to template tags, e.g. cve,exposure"
+  - name: rate_limit
+    type: integer
+    format: flag_value
+    flag: "-rate-limit"
+    minimum: 1
+    maximum: 150
+    description: "Requests per second"

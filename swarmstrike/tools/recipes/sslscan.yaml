@@ -1,0 +1,18 @@
+name: sslscan
+binary: sslscan
+summary: TLS protocol versions, cipher suites and certificate validity
+domains: [crypto, network]
+risk: active
+timeout_s: 600
+defaults: ["--no-colour"]
+guidance: >
+  Be proportionate when you score what this finds. A missing cipher preference
+  on a static site is low. An expired certificate or TLS 1.0 on an
+  authenticated application is not.
+parameters:
+  - name: target
+    type: string
+    required: true
+    format: positional
+    position: 1
+    description: "host or host:port"

@@ -1,0 +1,27 @@
+# Ported from the CyberStrikeAI tool recipes (Apache-2.0); see NOTICE.
+# Risk tier and contract gating are swarmstrike additions.
+name: amass
+binary: amass
+summary: Subdomain enumeration and network mapping
+domains:
+- recon
+risk: passive
+timeout_s: 1800
+defaults:
+- enum
+- -silent
+parameters:
+- name: domain
+  type: string
+  description: Apex domain
+  required: true
+  format: flag_value
+  flag: -d
+- name: passive_only
+  type: boolean
+  description: Passive sources only. Turning this off sends traffic to the target.
+  format: flag
+  flag: -passive
+  default: true
+guidance: Deeper than subfinder and slower. Keep passive_only on unless the contract covers active DNS
+  brute forcing against the client's nameservers.

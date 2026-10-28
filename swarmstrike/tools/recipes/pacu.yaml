@@ -1,0 +1,24 @@
+# Ported from the CyberStrikeAI tool recipes (Apache-2.0); see NOTICE.
+# Risk tier and contract gating are swarmstrike additions.
+name: pacu
+binary: pacu
+summary: AWS exploitation and privilege path assessment
+domains:
+- cloud
+risk: post_exploitation
+timeout_s: 1800
+parameters:
+- name: module
+  type: string
+  description: Pacu module to run
+  required: true
+  format: flag_value
+  flag: --module-name
+  pattern: '[a-z0-9_]{1,60}'
+- name: session
+  type: string
+  description: Pacu session name
+  format: flag_value
+  flag: --session
+guidance: Goes beyond reading configuration into exercising permissions, which is why it sits in the post-exploitation
+  tier. Enumerate privilege paths; do not modify the account.

@@ -1,0 +1,18 @@
+# Ported from the CyberStrikeAI tool recipes (Apache-2.0); see NOTICE.
+# Risk tier and contract gating are swarmstrike additions.
+name: kube-bench
+binary: kube-bench
+summary: CIS benchmark check of a Kubernetes cluster
+domains:
+- cloud
+risk: passive
+timeout_s: 1200
+defaults:
+- --json
+parameters:
+- name: targets
+  type: string
+  description: master, node, etcd, policies
+  format: flag_value
+  flag: --targets
+  pattern: '[a-z,]{1,60}'

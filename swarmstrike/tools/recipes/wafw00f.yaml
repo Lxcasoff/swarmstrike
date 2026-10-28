@@ -1,0 +1,20 @@
+# Ported from the CyberStrikeAI tool recipes (Apache-2.0); see NOTICE.
+# Risk tier and contract gating are swarmstrike additions.
+name: wafw00f
+binary: wafw00f
+summary: Identify a web application firewall in front of a target
+domains:
+- web
+risk: active
+timeout_s: 300
+defaults:
+- -a
+parameters:
+- name: target
+  type: string
+  description: URL
+  required: true
+  format: positional
+  position: 1
+guidance: 'Knowing a WAF is present changes how you read every later result: a blocked payload is not
+  proof the underlying flaw is absent, and it changes the CVSS vector you should claim.'

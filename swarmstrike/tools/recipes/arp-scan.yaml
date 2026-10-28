@@ -1,0 +1,23 @@
+# Ported from the CyberStrikeAI tool recipes (Apache-2.0); see NOTICE.
+# Risk tier and contract gating are swarmstrike additions.
+name: arp-scan
+binary: arp-scan
+summary: Discover hosts on the local segment via ARP
+domains:
+- network
+risk: active
+timeout_s: 600
+needs_raw_socket: true
+parameters:
+- name: interface
+  type: string
+  description: Network interface
+  format: flag_value
+  flag: -I
+- name: range
+  type: string
+  description: Address range
+  required: true
+  format: positional
+  position: 1
+guidance: Local segment only, and it needs raw sockets.

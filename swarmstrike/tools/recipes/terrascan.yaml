@@ -1,0 +1,27 @@
+# Ported from the CyberStrikeAI tool recipes (Apache-2.0); see NOTICE.
+# Risk tier and contract gating are swarmstrike additions.
+name: terrascan
+binary: terrascan
+summary: Policy-as-code scan of infrastructure definitions
+domains:
+- cloud
+- code
+risk: passive
+timeout_s: 1200
+defaults:
+- scan
+- -o
+- json
+parameters:
+- name: directory
+  type: string
+  description: Path in the workspace
+  required: true
+  format: flag_value
+  flag: -d
+- name: iac_type
+  type: string
+  description: terraform, k8s, helm, ...
+  format: flag_value
+  flag: -i
+  pattern: '[a-z]{1,20}'

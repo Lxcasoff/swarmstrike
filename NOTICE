@@ -1,0 +1,74 @@
+swarmstrike
+Copyright 2026 the swarmstrike authors
+
+================================================================================
+Third-party material
+================================================================================
+
+This product includes work derived from CyberStrikeAI
+(https://github.com/aipentest/cyberstrikeai), licensed under the Apache
+License, Version 2.0. A copy of that licence is available at
+http://www.apache.org/licenses/LICENSE-2.0
+
+What was derived
+----------------
+
+* **The declarative tool-recipe pattern.** CyberStrikeAI describes each
+  assessment tool in a YAML file — the binary, its typed parameters, how each
+  parameter maps onto a flag or position, and prose describing when to use it.
+  swarmstrike's `swarmstrike/tools/recipes.py` and the files under
+  `swarmstrike/tools/recipes/` follow that design.
+
+* **The tool coverage.** The set of tools described under
+  `swarmstrike/tools/recipes/` was selected from CyberStrikeAI's `tools/`
+  directory. Recipes derived this way carry a comment saying so.
+
+* **The agent and role taxonomy.** The division of an engagement into recon,
+  vulnerability triage, privilege escalation, lateral movement, persistence,
+  exfiltration and reporting follows the agent definitions under
+  CyberStrikeAI's `agents/`.
+
+* **The screen layout of the web console.** The set of views the dashboard
+  offers — campaign overview, findings, agents, tool inventory — follows
+  CyberStrikeAI's web console.
+
+What was changed
+----------------
+
+Per section 4(b) of the licence, the following changes were made to the
+derived material:
+
+* **Language and runtime.** CyberStrikeAI is written in Go and orchestrates
+  agents with Eino. swarmstrike is written in Python and orchestrates agents
+  with the Claude Agent SDK. No Go source was copied; the recipes were
+  rewritten and the descriptions translated and reworded.
+
+* **A risk tier on every recipe, gated by a signed contract.** Each recipe
+  declares how far it goes — passive, active, intrusive, credentialed,
+  privilege escalation, post-exploitation, lateral movement, persistence,
+  exfiltration, evasion or destructive — and that tier is checked against the
+  engagement contract's rules of engagement before the command is built.
+  CyberStrikeAI governs tool use through role-scoped tool policies and
+  human-in-the-loop approval; swarmstrike adds a machine-checked engagement
+  scope on top, so a command against an unauthorized target is refused whether
+  or not an operator is paying attention.
+
+* **Parameters become an argument vector, never a command string.** Values are
+  typed, pattern-checked, and rejected if they contain shell syntax, so a
+  parameter cannot introduce a second command.
+
+* **No general-purpose shell tool.** CyberStrikeAI's `exec`,
+  `execute-python-script` and `install-python-package` recipes were not
+  ported as such. swarmstrike replaces them with three tiers: a structured
+  command (allowlisted binary plus argument vector, fully scope-checked), a
+  pipeline (stages piped between containers, with later stages restricted to
+  filters that cannot execute), and a shell or script tier that requires a
+  per-invocation human approval which cannot be configured off.
+
+* **Payload generation and implant building were not ported.** CyberStrikeAI's
+  `msfvenom` recipe and its `internal/c2` payload and beacon builders have no
+  counterpart here. swarmstrike's red team tiers orchestrate established
+  external frameworks rather than producing new implants.
+
+* **Destructive actions are refused unconditionally.** No contract setting
+  enables them.

@@ -1,0 +1,37 @@
+# Ported from the CyberStrikeAI tool recipes (Apache-2.0); see NOTICE.
+# Risk tier and contract gating are swarmstrike additions.
+name: dirsearch
+binary: dirsearch
+summary: Directory and file discovery
+domains:
+- web
+risk: active
+timeout_s: 1800
+defaults:
+- -q
+- --format=json
+parameters:
+- name: url
+  type: string
+  description: Target URL
+  required: true
+  format: flag_value
+  flag: -u
+- name: extensions
+  type: string
+  description: Extensions
+  format: flag_value
+  flag: -e
+  pattern: '[a-zA-Z0-9,]{1,60}'
+- name: wordlist
+  type: string
+  description: Wordlist path
+  format: flag_value
+  flag: -w
+- name: rate
+  type: integer
+  description: Requests per second
+  format: flag_value
+  flag: --max-rate
+  minimum: 1
+  maximum: 200

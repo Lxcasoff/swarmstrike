@@ -1,0 +1,28 @@
+# Ported from the CyberStrikeAI tool recipes (Apache-2.0); see NOTICE.
+# Risk tier and contract gating are swarmstrike additions.
+name: trivy-image
+binary: trivy
+summary: Scan a container image for known vulnerabilities
+domains:
+- cloud
+- code
+risk: passive
+timeout_s: 1800
+defaults:
+- image
+- --quiet
+- --format
+- json
+parameters:
+- name: image
+  type: string
+  description: Image reference
+  required: true
+  format: positional
+  position: 1
+- name: severity
+  type: string
+  description: Severities to report
+  format: flag_value
+  flag: --severity
+  pattern: '[A-Z,]{1,60}'

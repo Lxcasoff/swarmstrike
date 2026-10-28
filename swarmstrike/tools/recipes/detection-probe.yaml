@@ -1,0 +1,31 @@
+name: detection-probe
+binary: curl
+summary: Query the client's own detection stack for whether an action was seen
+domains: [network]
+risk: evasion
+timeout_s: 180
+defaults: ["-sS", "--max-time", "60"]
+guidance: >
+  This measures detection rather than avoiding it. After an action, ask the
+  client's SIEM or EDR whether it registered, and record the answer against
+  the timestamp in the audit log. The deliverable the client is buying from an
+  evasion phase is a detection gap analysis — which of your actions were seen,
+  which were not, and how long attribution took — not a bypass toolkit.
+  Requires the deconfliction contact in the contract to be reachable.
+parameters:
+  - name: url
+    type: string
+    required: true
+    format: positional
+    position: 1
+    description: "Detection platform query endpoint"
+  - name: header
+    type: string
+    format: repeat
+    flag: "-H"
+    description: "Authentication headers, comma-separated"
+  - name: query
+    type: string
+    format: flag_value
+    flag: "--data-urlencode"
+    description: "The search to run, e.g. a time window and source address"

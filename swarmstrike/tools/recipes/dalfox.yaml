@@ -1,0 +1,37 @@
+# Ported from the CyberStrikeAI tool recipes (Apache-2.0); see NOTICE.
+# Risk tier and contract gating are swarmstrike additions.
+name: dalfox
+binary: dalfox
+summary: Cross-site scripting discovery and verification
+domains:
+- web
+risk: active
+timeout_s: 1200
+defaults:
+- --silence
+- --format
+- json
+parameters:
+- name: mode
+  type: enum
+  description: Input mode
+  required: true
+  format: positional
+  position: 1
+  choices:
+  - url
+  - pipe
+  - file
+- name: url
+  type: string
+  description: Target URL
+  required: true
+  format: positional
+  position: 2
+- name: blind
+  type: string
+  description: Blind XSS callback URL the engagement controls
+  format: flag_value
+  flag: -b
+guidance: Verifies reflection and context rather than only matching a pattern, so its hits are more defensible
+  than a generic scanner's. Still confirm the execution context yourself before proposing the finding.

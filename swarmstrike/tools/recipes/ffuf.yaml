@@ -1,0 +1,38 @@
+name: ffuf
+binary: ffuf
+summary: Content and parameter discovery on a web target
+domains: [web, api]
+risk: active
+timeout_s: 1800
+defaults: ["-s", "-mc", "200,201,204,301,302,307,401,403"]
+guidance: >
+  The noisiest tool available. Use a focused wordlist, keep the rate sane, and
+  do not run it against a production application without checking the
+  contract's rate limit first. Excluded URL paths are enforced, so a refusal
+  here means the contract carved that path out.
+parameters:
+  - name: url
+    type: string
+    required: true
+    format: flag_value
+    flag: "-u"
+    description: "Target URL containing the FUZZ keyword"
+  - name: wordlist
+    type: string
+    format: flag_value
+    flag: "-w"
+    default: "/usr/share/seclists/Discovery/Web-Content/common.txt"
+    description: "Wordlist path inside the toolbox"
+  - name: extensions
+    type: string
+    format: flag_value
+    flag: "-e"
+    pattern: "[a-zA-Z0-9.,]{1,60}"
+    description: "Extensions to append, e.g. .php,.bak"
+  - name: rate
+    type: integer
+    format: flag_value
+    flag: "-rate"
+    minimum: 1
+    maximum: 200
+    description: "Requests per second"

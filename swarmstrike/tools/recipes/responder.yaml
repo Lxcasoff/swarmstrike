@@ -1,0 +1,29 @@
+# Ported from the CyberStrikeAI tool recipes (Apache-2.0); see NOTICE.
+# Risk tier and contract gating are swarmstrike additions.
+name: responder
+binary: responder
+summary: Capture credentials via LLMNR and NBT-NS name resolution
+domains:
+- ad
+- network
+risk: credentialed
+timeout_s: 1800
+needs_raw_socket: true
+parameters:
+- name: interface
+  type: string
+  description: Interface to listen on
+  required: true
+  format: flag_value
+  flag: -I
+- name: analyse_only
+  type: boolean
+  description: Listen and report without answering. Leave this on unless the contract explicitly authorizes
+    responding.
+  format: flag
+  flag: -A
+  default: true
+guidance: 'This intercepts credentials belonging to real employees who did not consent individually, so
+  it needs the contract to authorize credential testing and a named deconfliction contact. Keep analyse_only
+  on where possible: observing that LLMNR is enabled and answerable is usually enough to report the finding,
+  without capturing anyone''s hash.'

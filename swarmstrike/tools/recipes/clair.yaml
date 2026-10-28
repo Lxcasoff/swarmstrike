@@ -1,0 +1,16 @@
+# Ported from the CyberStrikeAI tool recipes (Apache-2.0); see NOTICE.
+# Risk tier and contract gating are swarmstrike additions.
+name: clair
+binary: clair
+summary: Container image vulnerability analysis
+domains:
+- cloud
+risk: passive
+timeout_s: 1800
+parameters:
+- name: image
+  type: string
+  description: Image reference
+  required: true
+  format: positional
+  position: 1

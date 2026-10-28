@@ -1,0 +1,17 @@
+# Ported from the CyberStrikeAI tool recipes (Apache-2.0); see NOTICE.
+# Risk tier and contract gating are swarmstrike additions.
+name: nbtscan
+binary: nbtscan
+summary: NetBIOS name and workgroup discovery
+domains:
+- network
+- ad
+risk: active
+timeout_s: 600
+parameters:
+- name: target
+  type: string
+  description: Address or range
+  required: true
+  format: positional
+  position: 1

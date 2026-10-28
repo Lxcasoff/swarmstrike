@@ -1,0 +1,31 @@
+name: nikto
+binary: nikto
+summary: Web server misconfiguration and known-issue checks
+domains: [web]
+risk: active
+timeout_s: 1800
+defaults: ["-ask", "no", "-nointeractive"]
+guidance: >
+  Finds dated server issues and leftover files well, and produces a great deal
+  of noise alongside them. Treat each hit as a lead to confirm, never as a
+  finding on its own.
+parameters:
+  - name: host
+    type: string
+    required: true
+    format: flag_value
+    flag: "-h"
+    description: "Target URL or host"
+  - name: port
+    type: integer
+    format: flag_value
+    flag: "-p"
+    minimum: 1
+    maximum: 65535
+    description: "Port"
+  - name: tuning
+    type: string
+    format: flag_value
+    flag: "-Tuning"
+    pattern: "[0-9abcx]{1,12}"
+    description: "Restrict test classes. Excludes DoS tests by contract."

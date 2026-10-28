@@ -1,0 +1,26 @@
+# Ported from the CyberStrikeAI tool recipes (Apache-2.0); see NOTICE.
+# Risk tier and contract gating are swarmstrike additions.
+name: cloudmapper
+binary: cloudmapper
+summary: Visualise and audit AWS network exposure
+domains:
+- cloud
+risk: passive
+timeout_s: 1800
+parameters:
+- name: command
+  type: enum
+  description: Subcommand
+  required: true
+  format: positional
+  position: 1
+  choices:
+  - collect
+  - report
+  - public
+  - find_admins
+- name: account
+  type: string
+  description: Account name in the config
+  format: flag_value
+  flag: --account

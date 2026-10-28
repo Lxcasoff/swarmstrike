@@ -1,0 +1,49 @@
+# Ported from the CyberStrikeAI tool recipes (Apache-2.0); see NOTICE.
+# Risk tier and contract gating are swarmstrike additions.
+name: bloodhound
+binary: bloodhound-python
+summary: Collect Active Directory data for attack path analysis
+domains:
+- ad
+risk: post_exploitation
+timeout_s: 1800
+defaults:
+- --zip
+parameters:
+- name: domain
+  type: string
+  description: Domain
+  required: true
+  format: flag_value
+  flag: -d
+- name: username
+  type: string
+  description: Authenticated test account
+  required: true
+  format: flag_value
+  flag: -u
+- name: password
+  type: string
+  description: Password
+  format: flag_value
+  flag: -p
+- name: nameserver
+  type: string
+  description: Domain controller address
+  format: flag_value
+  flag: -ns
+- name: collect
+  type: enum
+  description: DCOnly reads only from the DC and is the quietest option.
+  format: flag_value
+  flag: -c
+  choices:
+  - Default
+  - DCOnly
+  - Group
+  - ACL
+  - Session
+  default: DCOnly
+guidance: Collection is read-only but it reads a great deal. DCOnly is the quiet default. What you are
+  after is the privilege path — reporting that a path from an ordinary user to Domain Admin exists, with
+  each link evidenced, is the deliverable. You do not need to walk it.

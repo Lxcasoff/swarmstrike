@@ -1,0 +1,32 @@
+# Ported from the CyberStrikeAI tool recipes (Apache-2.0); see NOTICE.
+# Risk tier and contract gating are swarmstrike additions.
+name: hashcat
+binary: hashcat
+summary: GPU-accelerated password hash cracking
+domains:
+- ad
+- network
+risk: credentialed
+timeout_s: 2400
+defaults:
+- --quiet
+parameters:
+- name: hashfile
+  type: string
+  description: Hash file
+  required: true
+  format: positional
+  position: 1
+- name: mode
+  type: integer
+  description: Hash mode
+  required: true
+  format: flag_value
+  flag: -m
+  minimum: 0
+  maximum: 99999
+- name: wordlist
+  type: string
+  description: Wordlist path
+  format: positional
+  position: 2

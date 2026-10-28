@@ -7,93 +7,95 @@
 #
 #   docker build -t swarmstrike/toolbox:latest -f docker/Dockerfile.toolbox .
 #
-# Pin the base image digest for a real engagement: a report that says what was
-# tested should be reproducible, and `rolling` is not.
-FROM kalilinux/kali-rolling:latest
+# Built on a pinned Debian rather than a rolling security distribution: every
+# binary the tool catalog is allowed to dispatch is available here, and a report
+# that states what was tested should be reproducible, which a rolling base is
+# not. Pin the digest for a real engagement.
+#
+# Layers are deliberately few. A campaign may run on a host using the vfs
+# storage driver, which copies the whole tree per layer instead of sharing it.
+FROM mirror.gcr.io/library/debian:bookworm-slim
 
 ENV DEBIAN_FRONTEND=noninteractive \
     LANG=C.UTF-8 \
     PATH="/opt/tools/bin:${PATH}"
 
-# --- Assessment tooling -----------------------------------------------------
-# Kept to what the tool catalog actually dispatches. Adding a binary here is
-# not enough to make it reachable: it must also be in ALLOWED_BINARIES in
-# swarmstrike/tools/catalog.py, and every command still passes the scope guard.
-RUN apt-get update && apt-get install -y --no-install-recommends \
-        ca-certificates curl wget git jq xsltproc \
-        dnsutils whois \
-        nmap masscan \
-        nikto sslscan \
-        sqlmap \
-        smbclient snmp ldap-utils \
-        seclists \
-        python3 python3-pip pipx \
-    && rm -rf /var/lib/apt/lists/*
-
-# --- ProjectDiscovery and Go-based tooling ----------------------------------
-# Installed from release archives rather than built, to keep the image small
-# and the versions explicit. Bump these deliberately; a scanner version is part
-# of what an engagement should be able to state.
+# Versions are explicit: a scanner's version is part of what an engagement
+# should be able to state afterwards.
 ARG TARGETARCH=amd64
 ARG NUCLEI_VERSION=3.3.5
 ARG HTTPX_VERSION=1.6.9
 ARG SUBFINDER_VERSION=2.6.6
 ARG DNSX_VERSION=1.2.1
-ARG KATANA_VERSION=1.1.2
 ARG FFUF_VERSION=2.1.0
+ARG TRIVY_VERSION=0.58.1
 
+# --- Packaged tooling ------------------------------------------------------
+# Adding a binary here does not make it reachable: it must also be in
+# ALLOWED_BINARIES in swarmstrike/tools/catalog.py, and every command still
+# passes the engagement scope guard before it runs.
+RUN set -eux; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends \
+        ca-certificates curl wget unzip git jq xsltproc \
+        dnsutils whois iproute2 netcat-openbsd \
+        nmap \
+        nikto sslscan \
+        sqlmap \
+        smbclient snmp ldap-utils \
+        python3 python3-minimal; \
+    rm -rf /var/lib/apt/lists/*
+
+# --- Release binaries ------------------------------------------------------
 RUN set -eux; \
     mkdir -p /opt/tools/bin /tmp/dl; \
     cd /tmp/dl; \
-    fetch() { \
-        name="$1"; version="$2"; url="$3"; \
-        echo "installing ${name} ${version}"; \
-        curl -fsSL -o "${name}.zip" "${url}"; \
+    pdfetch() { \
+        name="$1"; version="$2"; \
+        curl -fsSL -o "${name}.zip" \
+          "https://github.com/projectdiscovery/${name}/releases/download/v${version}/${name}_${version}_linux_${TARGETARCH}.zip"; \
         unzip -qo "${name}.zip" -d "${name}"; \
-        find "${name}" -type f -name "${name}" -exec install -m 0755 {} /opt/tools/bin/ \; ; \
+        install -m 0755 "${name}/${name}" /opt/tools/bin/; \
     }; \
-    apt-get update && apt-get install -y --no-install-recommends unzip && rm -rf /var/lib/apt/lists/*; \
-    fetch nuclei "${NUCLEI_VERSION}" \
-        "https://github.com/projectdiscovery/nuclei/releases/download/v${NUCLEI_VERSION}/nuclei_${NUCLEI_VERSION}_linux_${TARGETARCH}.zip"; \
-    fetch httpx "${HTTPX_VERSION}" \
-        "https://github.com/projectdiscovery/httpx/releases/download/v${HTTPX_VERSION}/httpx_${HTTPX_VERSION}_linux_${TARGETARCH}.zip"; \
-    fetch subfinder "${SUBFINDER_VERSION}" \
-        "https://github.com/projectdiscovery/subfinder/releases/download/v${SUBFINDER_VERSION}/subfinder_${SUBFINDER_VERSION}_linux_${TARGETARCH}.zip"; \
-    fetch dnsx "${DNSX_VERSION}" \
-        "https://github.com/projectdiscovery/dnsx/releases/download/v${DNSX_VERSION}/dnsx_${DNSX_VERSION}_linux_${TARGETARCH}.zip"; \
-    fetch katana "${KATANA_VERSION}" \
-        "https://github.com/projectdiscovery/katana/releases/download/v${KATANA_VERSION}/katana_${KATANA_VERSION}_linux_${TARGETARCH}.zip"; \
+    pdfetch nuclei    "${NUCLEI_VERSION}"; \
+    pdfetch httpx     "${HTTPX_VERSION}"; \
+    pdfetch subfinder "${SUBFINDER_VERSION}"; \
+    pdfetch dnsx      "${DNSX_VERSION}"; \
     curl -fsSL -o ffuf.tar.gz \
-        "https://github.com/ffuf/ffuf/releases/download/v${FFUF_VERSION}/ffuf_${FFUF_VERSION}_linux_${TARGETARCH}.tar.gz"; \
-    tar -xzf ffuf.tar.gz ffuf && install -m 0755 ffuf /opt/tools/bin/; \
-    rm -rf /tmp/dl
+      "https://github.com/ffuf/ffuf/releases/download/v${FFUF_VERSION}/ffuf_${FFUF_VERSION}_linux_${TARGETARCH}.tar.gz"; \
+    tar -xzf ffuf.tar.gz ffuf; install -m 0755 ffuf /opt/tools/bin/; \
+    curl -fsSL -o trivy.tar.gz \
+      "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"; \
+    tar -xzf trivy.tar.gz trivy; install -m 0755 trivy /opt/tools/bin/; \
+    cd /; rm -rf /tmp/dl
 
-# Nuclei templates, baked in so a campaign does not depend on fetching them
-# mid-engagement and so the template set is fixed for the duration.
-RUN nuclei -update-templates -templates-directory /opt/tools/nuclei-templates \
-    -duc -silent || true
-ENV NUCLEI_TEMPLATES=/opt/tools/nuclei-templates
-
-# --- Cloud and dependency scanning -----------------------------------------
-RUN pipx install --global prowler || true
+# --- Wordlist and templates ------------------------------------------------
+# One compact content-discovery list at the path the tool catalog defaults to,
+# rather than the multi-gigabyte collection: the catalog tells agents to use a
+# focused list, and content discovery is the noisiest thing they can do.
 RUN set -eux; \
-    TRIVY_VERSION=0.58.1; \
-    curl -fsSL -o /tmp/trivy.tar.gz \
-        "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"; \
-    tar -xzf /tmp/trivy.tar.gz -C /tmp trivy; \
-    install -m 0755 /tmp/trivy /opt/tools/bin/; \
-    rm -f /tmp/trivy.tar.gz /tmp/trivy
+    mkdir -p /usr/share/seclists/Discovery/Web-Content /opt/tools/nuclei-templates; \
+    curl -fsSL -o /usr/share/seclists/Discovery/Web-Content/common.txt \
+      "https://raw.githubusercontent.com/danielmiessler/SecLists/2024.1/Discovery/Web-Content/common.txt"; \
+    HOME=/tmp nuclei -update-templates \
+      -templates-directory /opt/tools/nuclei-templates -duc -silent || true; \
+    chmod -R a+rX /opt/tools /usr/share/seclists
 
-# --- Unprivileged user ------------------------------------------------------
+# --- Unprivileged user -----------------------------------------------------
 # Tools run as this user. The container also drops all capabilities and mounts
-# its root filesystem read-only, so /tmp (a tmpfs) and /work are the only
-# writable paths.
+# its root filesystem read-only, so the executor points HOME and the XDG
+# directories at the tmpfs — several of these tools write a config file on
+# first run and fail outright if they cannot.
 RUN useradd --create-home --shell /usr/sbin/nologin --uid 1000 assessor \
     && mkdir -p /work && chown assessor:assessor /work
 
 USER assessor
 WORKDIR /work
 
-# No ENTRYPOINT: the executor passes the full argument vector, already
-# validated against the engagement contract, as the container command.
-CMD ["/bin/sh", "-c", "echo 'swarmstrike toolbox — invoked with a command by the executor'"]
+# What is actually in here, for the report appendix and for preflight.
+LABEL org.opencontainers.image.title="swarmstrike toolbox" \
+      org.opencontainers.image.description="Assessment tooling for authorized penetration tests"
+
+# No ENTRYPOINT: the executor passes the full argument vector, already validated
+# against the engagement contract, as the container command.
+CMD ["/bin/sh", "-c", "echo 'swarmstrike toolbox — the executor invokes this image with a command'"]

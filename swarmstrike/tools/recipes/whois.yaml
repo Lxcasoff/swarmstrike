@@ -1,0 +1,16 @@
+name: whois
+binary: whois
+summary: Registration and ownership records for a domain or address range
+domains: [recon]
+risk: passive
+timeout_s: 120
+guidance: >
+  Use it to confirm the client actually owns what you are about to test, and to
+  spot ranges that belong to a hosting provider rather than to them.
+parameters:
+  - name: query
+    type: string
+    required: true
+    format: positional
+    position: 1
+    description: "Domain, IP address or network range"

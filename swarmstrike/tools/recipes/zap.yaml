@@ -1,0 +1,27 @@
+# Ported from the CyberStrikeAI tool recipes (Apache-2.0); see NOTICE.
+# Risk tier and contract gating are swarmstrike additions.
+name: zap
+binary: zap-cli
+summary: OWASP ZAP automated web application scan
+domains:
+- web
+- api
+risk: active
+timeout_s: 2400
+defaults:
+- quick-scan
+- --self-contained
+parameters:
+- name: url
+  type: string
+  description: Target URL
+  required: true
+  format: positional
+  position: 1
+- name: scanners
+  type: string
+  description: Restrict to specific scanner IDs
+  format: flag_value
+  flag: --scanners
+guidance: Thorough and slow. Its active scan sends a lot of traffic, so check the contract's rate limit
+  and intensity before starting it on production.

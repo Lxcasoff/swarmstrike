@@ -1,0 +1,18 @@
+name: trivy-config
+binary: trivy
+summary: Scan infrastructure-as-code and container config for misconfiguration
+domains: [cloud, code]
+risk: passive
+timeout_s: 1200
+defaults: ["config", "--quiet", "--format", "json"]
+guidance: >
+  Reads files rather than touching a target, so it is passive. Good for finding
+  the cause behind an exposure another specialist found from outside — pair
+  your findings with theirs and leave a note.
+parameters:
+  - name: path
+    type: string
+    required: true
+    format: positional
+    position: 1
+    description: "Path inside the campaign workspace"

@@ -1,0 +1,36 @@
+name: httpx
+binary: httpx
+summary: "Fingerprint HTTP services: status, title, technology, TLS"
+domains: [recon, web, api]
+risk: active
+timeout_s: 600
+defaults: ["-silent", "-json", "-follow-redirects"]
+guidance: >
+  Cheap and fast. Run it across everything recon found before choosing where to
+  spend time on deeper web testing. The technology and title fields are usually
+  enough to decide which specialist should take an asset.
+parameters:
+  - name: target
+    type: string
+    required: true
+    format: flag_value
+    flag: "-u"
+    description: "Host or URL, or a comma-separated list"
+  - name: ports
+    type: string
+    format: flag_value
+    flag: "-ports"
+    pattern: "[0-9,\\-]{1,64}"
+    description: "Extra ports to probe"
+  - name: tech_detect
+    type: boolean
+    format: flag
+    flag: "-tech-detect"
+    default: true
+    description: "Identify the technology stack"
+  - name: tls_grab
+    type: boolean
+    format: flag
+    flag: "-tls-grab"
+    default: true
+    description: "Read certificate details"

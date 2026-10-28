@@ -1,0 +1,55 @@
+# Ported from the CyberStrikeAI tool recipes (Apache-2.0); see NOTICE.
+# Risk tier and contract gating are swarmstrike additions.
+name: hydra
+binary: hydra
+summary: Authentication testing against a named test account
+domains:
+- network
+- web
+risk: credentialed
+timeout_s: 1800
+defaults:
+- -q
+parameters:
+- name: protocol
+  type: enum
+  description: Service
+  required: true
+  format: positional
+  position: 2
+  choices:
+  - ssh
+  - ftp
+  - http-get
+  - http-post-form
+  - smb
+  - rdp
+  - mysql
+  - postgres
+- name: target
+  type: string
+  description: Host, in scope
+  required: true
+  format: positional
+  position: 1
+- name: username
+  type: string
+  description: A test account the contract names
+  required: true
+  format: flag_value
+  flag: -l
+- name: password_list
+  type: string
+  description: Candidate password file
+  format: flag_value
+  flag: -P
+- name: tasks
+  type: integer
+  description: 'Parallel tasks. Keep low: lockout is an outage you caused.'
+  format: flag_value
+  flag: -t
+  default: 4
+  minimum: 1
+  maximum: 8
+guidance: Only against the test accounts the contract lists. Never against real user accounts. Check the
+  account lockout policy before you start — if you do not know it, do not run this.

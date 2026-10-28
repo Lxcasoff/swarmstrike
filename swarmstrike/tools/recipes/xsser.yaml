@@ -1,0 +1,21 @@
+# Ported from the CyberStrikeAI tool recipes (Apache-2.0); see NOTICE.
+# Risk tier and contract gating are swarmstrike additions.
+name: xsser
+binary: xsser
+summary: Cross-site scripting testing
+domains:
+- web
+risk: active
+timeout_s: 1200
+parameters:
+- name: url
+  type: string
+  description: Target URL
+  required: true
+  format: flag_value
+  flag: -u
+- name: get_params
+  type: string
+  description: GET parameters to test
+  format: flag_value
+  flag: -g

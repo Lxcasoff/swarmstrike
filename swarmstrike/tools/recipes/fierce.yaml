@@ -1,0 +1,16 @@
+# Ported from the CyberStrikeAI tool recipes (Apache-2.0); see NOTICE.
+# Risk tier and contract gating are swarmstrike additions.
+name: fierce
+binary: fierce
+summary: DNS reconnaissance and nameserver discovery
+domains:
+- recon
+risk: active
+timeout_s: 900
+parameters:
+- name: domain
+  type: string
+  description: Domain to probe
+  required: true
+  format: flag_value
+  flag: --domain

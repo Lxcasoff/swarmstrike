@@ -1,0 +1,51 @@
+name: nmap
+binary: nmap
+summary: Port, service and version discovery
+domains: [network, recon]
+risk: active
+needs_raw_socket: false
+timeout_s: 1800
+defaults: ["-Pn", "--open"]
+guidance: >
+  Default is a connect scan, which needs no privileges and is the right choice
+  unless you specifically need a half-open scan. A banner is a hypothesis, not
+  an identification, and version detection is frequently wrong about
+  backported patches — report what the evidence supports. Full-range scans are
+  slow and loud; start with the common ports.
+parameters:
+  - name: target
+    type: string
+    required: true
+    format: positional
+    position: 1
+    description: "Host, address, CIDR or comma-separated list"
+  - name: ports
+    type: string
+    format: flag_value
+    flag: "-p"
+    pattern: "[0-9,\\-]{1,64}"
+    description: "Ports, e.g. 80 or 1-1000 or 80,443,8080"
+  - name: scan_type
+    type: enum
+    choices: ["-sT", "-sS", "-sU", "-sN"]
+    format: positional
+    position: 0
+    description: "Scan technique. -sS and -sU need raw sockets."
+  - name: service_detection
+    type: boolean
+    format: flag
+    flag: "-sV"
+    default: true
+    description: "Identify service and version"
+  - name: scripts
+    type: string
+    format: flag_value
+    flag: "--script"
+    pattern: "[a-zA-Z0-9_,.*-]{1,120}"
+    description: "NSE scripts. The dos category is refused by the contract."
+  - name: timing
+    type: enum
+    choices: ["-T1", "-T2", "-T3", "-T4"]
+    format: positional
+    position: 0
+    description: "Timing template. Keep it low on production systems."

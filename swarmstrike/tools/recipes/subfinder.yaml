@@ -1,0 +1,25 @@
+name: subfinder
+binary: subfinder
+summary: Passive subdomain enumeration from public sources
+domains: [recon]
+risk: passive
+timeout_s: 900
+defaults: ["-silent", "-all"]
+guidance: >
+  Sends nothing to the target: results come from certificate transparency,
+  passive DNS and search indexes. Safe to run first and widely. Record every
+  name it returns as an asset, then resolve them before assuming they are live.
+parameters:
+  - name: domain
+    type: string
+    required: true
+    format: flag_value
+    flag: "-d"
+    description: "Apex domain to enumerate, e.g. example.org"
+  - name: max_time
+    type: integer
+    format: flag_value
+    flag: "-timeout"
+    minimum: 5
+    maximum: 120
+    description: "Per-source timeout in seconds"

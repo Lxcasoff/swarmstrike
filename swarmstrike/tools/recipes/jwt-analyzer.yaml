@@ -1,0 +1,28 @@
+# Ported from the CyberStrikeAI tool recipes (Apache-2.0); see NOTICE.
+# Risk tier and contract gating are swarmstrike additions.
+name: jwt-analyzer
+binary: jwt_tool
+summary: JSON Web Token analysis and tampering tests
+domains:
+- api
+- web
+risk: active
+timeout_s: 600
+parameters:
+- name: token
+  type: string
+  description: The JWT to analyse
+  required: true
+  format: positional
+  position: 1
+- name: mode
+  type: enum
+  description: -X exploit checks, -C crack, -V verify
+  format: positional
+  position: 0
+  choices:
+  - -X
+  - -C
+  - -V
+guidance: Check whether the signature is actually verified, whether alg:none is accepted, and what the
+  payload carries that it should not. An unverified signature is a critical finding and trivially provable.

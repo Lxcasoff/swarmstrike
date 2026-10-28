@@ -1,0 +1,23 @@
+# Ported from the CyberStrikeAI tool recipes (Apache-2.0); see NOTICE.
+# Risk tier and contract gating are swarmstrike additions.
+name: graphql-scanner
+binary: graphqlmap
+summary: GraphQL introspection and injection testing
+domains:
+- api
+risk: active
+timeout_s: 1200
+parameters:
+- name: url
+  type: string
+  description: GraphQL endpoint
+  required: true
+  format: flag_value
+  flag: -u
+- name: headers
+  type: string
+  description: Headers, comma-separated
+  format: repeat
+  flag: -H
+guidance: Introspection left enabled hands you the entire schema. Check for it first, then test authorization
+  per field — GraphQL commonly enforces it at the resolver for some fields and nowhere for others.

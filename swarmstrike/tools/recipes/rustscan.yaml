@@ -1,0 +1,31 @@
+# Ported from the CyberStrikeAI tool recipes (Apache-2.0); see NOTICE.
+# Risk tier and contract gating are swarmstrike additions.
+name: rustscan
+binary: rustscan
+summary: Very fast port discovery, then hand off to nmap
+domains:
+- network
+risk: active
+timeout_s: 1200
+defaults:
+- --accessible
+parameters:
+- name: target
+  type: string
+  description: Host or range
+  required: true
+  format: flag_value
+  flag: -a
+- name: batch
+  type: integer
+  description: Batch size
+  format: flag_value
+  flag: -b
+  minimum: 10
+  maximum: 5000
+- name: ports
+  type: string
+  description: Ports
+  format: flag_value
+  flag: -p
+  pattern: '[0-9,\-]{1,64}'

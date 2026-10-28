@@ -18,7 +18,7 @@ from typing import Any, Literal
 from zoneinfo import ZoneInfo
 
 import yaml
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 SCOPE_KEY_ENV = "SWARMSTRIKE_SCOPE_KEY"
 
@@ -145,6 +145,108 @@ class Exploitation(BaseModel):
     stop_at_proof: bool = True
 
 
+class ArbitraryExecution(BaseModel):
+    """Running commands the recipe set does not cover.
+
+    Three tiers, in decreasing order of what can be guaranteed:
+
+    * `structured_commands` — a binary plus an argument vector, no shell. The
+      binary is allowlisted and the argv goes through the scope guard exactly
+      as a recipe's would. Nothing is given up, so this is on by default.
+    * `pipelines` — several structured commands piped together. Each stage is
+      allowlisted and scope-checked on its own; the pipe is built between
+      containers rather than by a shell, so there is still no shell anywhere.
+    * `shell` / `scripts` — a shell command or a script. These cannot be
+      checked statically: `;`, `|` and `$(...)` mean one approved-looking
+      string can do anything. The guarantee here is different in kind —
+      contained, approved and logged, rather than enforced — and swarmstrike
+      says so rather than implying the scope guard still holds.
+
+    Approval for the third tier is not configurable. The contract decides
+    whether a shell is available at all; that a human decides each use is
+    structural, because an approval an operator can switch off is not a
+    control, and an unattended campaign that approves its own shell commands
+    has only the appearance of one.
+    """
+
+    structured_commands: bool = True
+    pipelines: bool = False
+    shell: bool = False
+    scripts: bool = False
+
+    # Binaries the agents may invoke beyond those the recipes already name.
+    extra_binaries: list[str] = Field(default_factory=list)
+
+    # How long an operator has to decide before the action is refused.
+    approval_timeout_s: int = 300
+
+    @model_validator(mode="after")
+    def _tiers_are_ordered(self) -> ArbitraryExecution:
+        if (self.shell or self.scripts) and not self.structured_commands:
+            raise ValueError(
+                "shell or script execution is enabled but structured_commands is "
+                "off. That is backwards: the checked tier should always be "
+                "available before the unchecked one."
+            )
+        return self
+
+
+class RedTeam(BaseModel):
+    """Phases beyond finding a vulnerability.
+
+    A red team engagement goes further than a penetration test: it establishes
+    a foothold and works from it to answer "how far could an attacker get, and
+    would anyone notice". Each phase is its own switch, because clients
+    authorize them separately and a scope letter that covers privilege
+    escalation very often does not cover persistence.
+
+    `enabled` is the master switch. Every phase below also needs its own flag,
+    so turning on red team mode does not silently turn on everything.
+    """
+
+    enabled: bool = False
+
+    post_exploitation: bool = False       # enumeration from an established foothold
+    privilege_escalation: bool = False
+    lateral_movement: bool = False
+    persistence: bool = False             # also requires forbid_persistence to be false
+    evasion: bool = False                 # exercising the client's detection capability
+
+    # Proving an exfiltration path exists, using planted canary data. Never the
+    # client's real data: the finding is that the path works, and moving real
+    # records to prove it creates the breach the test was meant to prevent.
+    exfiltration_simulation: bool = False
+    canary_only: bool = True
+
+    # Anything established during the engagement has to be removed, and the
+    # report has to account for it.
+    cleanup_required: bool = True
+
+    # Detection testing is only worth doing if someone is watching and the
+    # findings can be correlated afterwards.
+    notify_defenders: bool = False
+    deconfliction_contact: str = ""
+
+    @model_validator(mode="after")
+    def _phases_need_the_master_switch(self) -> RedTeam:
+        if self.enabled:
+            return self
+        active = [
+            name for name in (
+                "post_exploitation", "privilege_escalation", "lateral_movement",
+                "persistence", "evasion", "exfiltration_simulation",
+            )
+            if getattr(self, name)
+        ]
+        if active:
+            raise ValueError(
+                "red_team.enabled is false but these phases are switched on: "
+                f"{', '.join(active)}. Either enable red team mode deliberately or "
+                f"turn these off — a half-configured contract is worse than either."
+            )
+        return self
+
+
 class RulesOfEngagement(BaseModel):
     intensity: Literal["quiet", "normal", "aggressive"] = "normal"
     max_requests_per_second: int = 10
@@ -159,6 +261,12 @@ class RulesOfEngagement(BaseModel):
 
     credential_testing: CredentialTesting = Field(default_factory=CredentialTesting)
     exploitation: Exploitation = Field(default_factory=Exploitation)
+
+    # Off unless the engagement is genuinely a red team engagement.
+    red_team: RedTeam = Field(default_factory=RedTeam)
+
+    # Commands the recipe set does not cover. Structured only, by default.
+    arbitrary_execution: ArbitraryExecution = Field(default_factory=ArbitraryExecution)
 
 
 class Budget(BaseModel):

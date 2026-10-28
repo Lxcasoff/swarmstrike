@@ -1,0 +1,30 @@
+# Ported from the CyberStrikeAI tool recipes (Apache-2.0); see NOTICE.
+# Risk tier and contract gating are swarmstrike additions.
+name: scout-suite
+binary: scout
+summary: Multi-cloud configuration review
+domains:
+- cloud
+risk: passive
+timeout_s: 2400
+defaults:
+- --no-browser
+parameters:
+- name: provider
+  type: enum
+  description: Cloud provider
+  required: true
+  format: positional
+  position: 1
+  choices:
+  - aws
+  - azure
+  - gcp
+  - aliyun
+  - oci
+- name: report_dir
+  type: string
+  description: Output directory
+  format: flag_value
+  flag: --report-dir
+  default: /work/output/scout

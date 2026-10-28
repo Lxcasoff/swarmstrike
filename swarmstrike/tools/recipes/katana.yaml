@@ -1,0 +1,35 @@
+# Ported from the CyberStrikeAI tool recipes (Apache-2.0); see NOTICE.
+# Risk tier and contract gating are swarmstrike additions.
+name: katana
+binary: katana
+summary: Crawl a web application and map its endpoints
+domains:
+- web
+- api
+risk: active
+timeout_s: 1200
+defaults:
+- -silent
+- -jsonl
+parameters:
+- name: url
+  type: string
+  description: Target URL
+  required: true
+  format: flag_value
+  flag: -u
+- name: depth
+  type: integer
+  description: Crawl depth
+  format: flag_value
+  flag: -d
+  minimum: 1
+  maximum: 5
+- name: js_crawl
+  type: boolean
+  description: Parse JavaScript for endpoints
+  format: flag
+  flag: -jc
+  default: true
+guidance: Crawling first gives the web and API specialists a real endpoint map instead of guesses. JavaScript
+  parsing often surfaces API routes the interface never links to.

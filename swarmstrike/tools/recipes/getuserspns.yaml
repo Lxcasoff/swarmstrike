@@ -1,0 +1,23 @@
+name: getuserspns
+binary: GetUserSPNs.py
+summary: List service accounts with a service principal name set
+domains: [ad]
+risk: privilege_escalation
+timeout_s: 900
+guidance: >
+  Identifies accounts whose tickets could be requested and cracked offline.
+  Listing them is the finding — a service account in a privileged group with a
+  weak password is a reportable privilege path. Cracking requires the
+  contract's credential testing authorization separately.
+parameters:
+  - name: target
+    type: string
+    required: true
+    format: positional
+    position: 1
+    description: "domain/username:password format accepted by impacket"
+  - name: dc_ip
+    type: string
+    format: flag_value
+    flag: "-dc-ip"
+    description: "Domain controller address"
