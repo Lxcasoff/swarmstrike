@@ -133,6 +133,78 @@ putting it anywhere else needs a deliberate decision and something in front of i
 
 ---
 
+## Running it as a container
+
+One command, which is the property a single static binary would have bought —
+without rewriting the project in a language that produces one. The reasoning is
+in [Why Python](#why-python) below.
+
+```bash
+cp .env.example .env            # ANTHROPIC_API_KEY and SWARMSTRIKE_SCOPE_KEY
+mkdir -p campaigns              # writable by uid 1000
+$EDITOR engagement.yaml         # then sign it
+
+docker build -t swarmstrike/toolbox:latest -f docker/Dockerfile.toolbox .
+docker compose -f docker/docker-compose.yml up
+```
+
+Then open http://127.0.0.1:8787.
+
+Two images, and the split is the point. `swarmstrike/server` holds the
+orchestrator, the dashboard, the API key and the signing key, and carries no
+assessment tooling at all. `swarmstrike/toolbox` holds the tooling and is
+started fresh per command, holding neither key. A test fails if an assessment
+binary turns up in the server image, because that separation is easy to erode
+by accident.
+
+**Before running it anywhere but your own machine.** The compose file mounts the
+Docker socket, because the orchestrator starts a toolbox container per command.
+Access to that socket is equivalent to root on the host, so the container around
+swarmstrike is not a security boundary against swarmstrike. Run it on a machine
+you are willing to treat as dedicated to the engagement. The dashboard has no
+authentication and the port is published to loopback for that reason — it can
+start a penetration test and approve shell commands. Where you have the option,
+point `DOCKER_HOST` at a remote daemon and drop the socket mount entirely.
+
+### The mount that fails silently
+
+Toolbox containers are siblings of the server, not children, so the daemon
+resolves their bind mounts against the host filesystem rather than against the
+server's. If those paths disagree, every tool mounts an empty directory, runs
+normally, writes into nothing and reports success — and the campaign looks
+healthy until someone opens a report with no evidence in it.
+
+The compose file avoids it by mounting the campaigns directory at the same
+absolute path on both sides, so there is nothing to translate. If you change
+that, set `SWARMSTRIKE_HOST_WORKSPACE` to the host path for the directory.
+
+Either way, preflight proves it rather than trusting it: it writes a token into
+the workspace, has a toolbox container read it back, and refuses to start the
+campaign if the token does not come back.
+
+---
+
+## Why Python
+
+CyberStrikeAI, the project this borrows from, is written in Go and ships as one
+static binary. That is a real advantage for a tool you drop on a jump host, and
+it is worth saying why this is not.
+
+Their `multiagent` package is 17,000 lines: the agent loop, context management,
+subagents, and their orchestration modes. The Claude Agent SDK provides that,
+and it is Python and TypeScript. Writing this in Go would mean paying those
+17,000 lines back.
+
+It would not even produce the single binary, because the Agent SDK drives the
+`claude` CLI, which is a Node program — so the runtime is Python plus Node
+either way, and a Go rewrite would either embed that same Node CLI for no gain
+or reimplement the harness against the Messages API directly.
+
+The deployment property Go was bought for is real, so it is solved above with a
+container instead. The other usual argument, concurrency, does not apply: this
+process starts subprocesses and containers, which is I/O, and asyncio is
+entirely adequate for that.
+
 ## The team
 
 | Agent | Covers |

@@ -13,6 +13,7 @@ so they happen whether or not a model remembers to ask for them.
 
 from __future__ import annotations
 
+import os
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -236,7 +237,15 @@ class Campaign:
             kb=self.kb,
             workspace=self.dir,
             killswitch=self.killswitch,
-            policy=ContainerPolicy(image=config.toolbox_image),
+            policy=ContainerPolicy(
+                image=config.toolbox_image,
+                # Set when swarmstrike runs in a container; see preflight.
+                host_workspace=(
+                    Path(os.environ["SWARMSTRIKE_HOST_WORKSPACE"])
+                    if os.environ.get("SWARMSTRIKE_HOST_WORKSPACE") else None
+                ),
+                local_workspace_root=config.workspace_root,
+            ),
             max_concurrent=self.engagement.rules_of_engagement.max_concurrent_tools,
             min_interval_s=_interval_for(self.engagement.rules_of_engagement.intensity),
             on_event=self._emit,

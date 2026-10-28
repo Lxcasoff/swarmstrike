@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import shutil
 import sys
 from pathlib import Path
@@ -161,8 +162,14 @@ def run(
         None, "--domain", "-d",
         help=f"Limit the roster to these specialists. Available: {', '.join(SPECIALIST_NAMES)}",
     ),
-    workspace: Path = typer.Option(Path("campaigns"), "--workspace", help="Where campaigns are written."),
-    image: str = typer.Option("swarmstrike/toolbox:latest", "--image", help="Toolbox container image."),
+    workspace: Path = typer.Option(
+        None, "--workspace",
+        help="Where campaigns are written. Defaults to $SWARMSTRIKE_WORKSPACE, else ./campaigns.",
+    ),
+    image: str = typer.Option(
+        None, "--image",
+        help="Toolbox container image. Defaults to $SWARMSTRIKE_TOOLBOX_IMAGE.",
+    ),
     resume: str = typer.Option(None, "--resume", help="Resume an existing campaign by id."),
     rounds: int = typer.Option(2, "--review-rounds", min=1, max=4, help="Maximum review rounds per finding."),
     tui: bool = typer.Option(False, "--tui", help="Live view instead of streaming log."),
@@ -185,10 +192,14 @@ def run(
 
     config = CampaignConfig(
         engagement_path=engagement_path,
-        workspace_root=workspace,
+        workspace_root=workspace or Path(
+            os.environ.get("SWARMSTRIKE_WORKSPACE", "campaigns")
+        ),
         domains=list(domains) if domains else None,
         max_review_rounds=rounds,
-        toolbox_image=image,
+        toolbox_image=image or os.environ.get(
+            "SWARMSTRIKE_TOOLBOX_IMAGE", "swarmstrike/toolbox:latest"
+        ),
         resume=resume,
         skip_preflight=skip_preflight,
     )

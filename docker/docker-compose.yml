@@ -1,0 +1,91 @@
+# swarmstrike, in one command.
+#
+#   cp .env.example .env     # fill in ANTHROPIC_API_KEY and SWARMSTRIKE_SCOPE_KEY
+#   docker build -t swarmstrike/toolbox:latest -f docker/Dockerfile.toolbox .
+#   docker compose -f docker/docker-compose.yml up
+#
+# Then open http://127.0.0.1:8787.
+#
+# ──────────────────────────────────────────────────────────────────────────
+#  Read this before running it anywhere but your own machine
+# ──────────────────────────────────────────────────────────────────────────
+#  This mounts the Docker socket, because the orchestrator starts a toolbox
+#  container per command. Access to that socket is equivalent to root on the
+#  host: a process that can talk to it can start a privileged container and
+#  mount the host filesystem. The container boundary around swarmstrike is
+#  therefore not a security boundary against swarmstrike itself.
+#
+#  What that means in practice:
+#
+#    * Run this on a machine you are willing to treat as dedicated to the
+#      engagement — a disposable VPS or a laptop, not a shared server that
+#      also holds other clients' data.
+#    * The dashboard has no authentication. The port is published to
+#      127.0.0.1 below for that reason. Moving it to 0.0.0.0 exposes an
+#      interface that can start a penetration test and approve shell
+#      commands, to anyone who can reach the port.
+#    * If you need the daemon on another host, set DOCKER_HOST instead of
+#      mounting the socket and drop the socket mount entirely. That is the
+#      better arrangement when you have the option.
+# ──────────────────────────────────────────────────────────────────────────
+
+name: swarmstrike
+
+services:
+  swarmstrike:
+    image: swarmstrike/server:latest
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: swarmstrike
+
+    # Loopback only. See the note above before changing this.
+    ports:
+      - "127.0.0.1:8787:8787"
+
+    environment:
+      # Required.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:?set ANTHROPIC_API_KEY in .env}
+      SWARMSTRIKE_SCOPE_KEY: ${SWARMSTRIKE_SCOPE_KEY:?set SWARMSTRIKE_SCOPE_KEY in .env}
+
+      SWARMSTRIKE_TOOLBOX_IMAGE: ${SWARMSTRIKE_TOOLBOX_IMAGE:-swarmstrike/toolbox:latest}
+      SWARMSTRIKE_WORKSPACE: ${PWD}/campaigns
+
+      # SWARMSTRIKE_HOST_WORKSPACE is deliberately NOT set here.
+      #
+      # Toolbox containers are siblings of this one, so the daemon resolves
+      # their bind mounts against the host filesystem rather than against this
+      # container's. The volume below mounts the campaigns directory at the
+      # same absolute path it has on the host, so the two agree and nothing
+      # needs translating. Set this variable only if you change that volume so
+      # the paths differ; it is the host path for the campaigns directory.
+      #
+      # Either way, preflight proves it rather than trusting it: it writes a
+      # token into the workspace and has a toolbox container read it back. If
+      # the mount does not land, the campaign refuses to start — because the
+      # alternative is tools that run, write into nothing and report success.
+
+    volumes:
+      # Campaign output: the knowledge base, the audit chain, tool output and
+      # the reports. The container path matches the host path on purpose — see
+      # the note above. The directory must be writable by uid 1000.
+      - ${PWD}/campaigns:${PWD}/campaigns:rw
+
+      # The signed engagement contract, read-only — the running campaign has
+      # no business modifying the thing that authorizes it.
+      - ${PWD}/engagement.yaml:/srv/swarmstrike/engagement.yaml:ro
+
+      # Root on the host. See the note above.
+      - /var/run/docker.sock:/var/run/docker.sock
+
+    # The orchestrator and the dashboard are I/O bound; these keep a runaway
+    # campaign from taking the host down with it.
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+
+    security_opt:
+      - no-new-privileges:true
+
+    restart: unless-stopped

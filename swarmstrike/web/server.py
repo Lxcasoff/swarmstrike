@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
+import os
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -42,8 +43,15 @@ def _now() -> str:
 class StartRequest(BaseModel):
     engagement_path: str = Field(..., description="Path to a signed engagement contract.")
     domains: list[str] | None = Field(None, description="Limit the roster to these specialists.")
-    workspace: str = "campaigns"
-    image: str = "swarmstrike/toolbox:latest"
+    workspace: str = Field(
+        default_factory=lambda: os.environ.get("SWARMSTRIKE_WORKSPACE", "campaigns"),
+        description="Where campaigns are written. Set by the container image.",
+    )
+    image: str = Field(
+        default_factory=lambda: os.environ.get(
+            "SWARMSTRIKE_TOOLBOX_IMAGE", "swarmstrike/toolbox:latest"
+        ),
+    )
     review_rounds: int = Field(2, ge=1, le=4)
     skip_preflight: bool = False
 

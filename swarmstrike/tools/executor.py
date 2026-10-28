@@ -15,6 +15,7 @@ import hashlib
 import json
 import shlex
 import time
+import uuid
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -115,6 +116,39 @@ class ContainerPolicy:
     # network — a lab, or a jump host that sits on one.
     network: str | None = None
 
+    # Where campaigns live *as the Docker daemon sees them*, when that differs
+    # from where this process sees them.
+    #
+    # Toolbox containers are siblings, not children: the daemon resolves their
+    # bind mounts against the host filesystem, not against this process's. When
+    # swarmstrike runs in a container that mounts its campaigns directory at
+    # the same absolute path it has on the host — which is what the shipped
+    # compose file does — the two agree and neither of these is needed. They
+    # exist for the case where the paths differ.
+    host_workspace: Path | None = None
+    local_workspace_root: Path | None = None
+
+    def mount_source(self, workspace: Path) -> str:
+        """The bind-mount source the daemon will resolve.
+
+        Translation is anchored on the workspace root rather than the working
+        directory: a campaign directory sits under that root, and anchoring
+        anywhere else produces a doubled path.
+        """
+        if self.host_workspace is None:
+            return str(workspace)
+
+        root = self.local_workspace_root
+        if root is not None:
+            try:
+                relative = workspace.resolve().relative_to(root.resolve())
+            except (ValueError, OSError):
+                relative = None
+            if relative is not None and relative != Path("."):
+                return str(self.host_workspace / relative)
+
+        return str(self.host_workspace)
+
     def docker_argv(
         self, workspace: Path, *, needs_raw_socket: bool, stdin: bool = False
     ) -> list[str]:
@@ -131,7 +165,7 @@ class ContainerPolicy:
             "--tmpfs", "/tmp:rw,noexec,nosuid,size=512m",
             "--security-opt", "no-new-privileges",
             "--cap-drop", "ALL",
-            "--volume", f"{workspace}:/work:rw",
+            "--volume", f"{self.mount_source(workspace)}:/work:rw",
             "--workdir", "/work",
             "--env", f"HOME={self.writable_home}",
             "--env", f"XDG_CONFIG_HOME={self.writable_home}/.config",
@@ -643,8 +677,74 @@ class ToolExecutor:
             )
 
     # ------------------------------------------------------------------
+    @staticmethod
+    def running_in_container() -> bool:
+        """Whether this process is itself inside a container."""
+        if Path("/.dockerenv").exists():
+            return True
+        try:
+            cgroup = Path("/proc/1/cgroup").read_text(encoding="utf-8")
+        except OSError:
+            return False
+        return any(marker in cgroup for marker in ("docker", "containerd", "kubepods"))
+
+    async def verify_mount(self) -> tuple[bool, str]:
+        """Prove the workspace mount lands where this process is writing.
+
+        Toolbox containers are siblings, so the daemon resolves their bind
+        mounts against the host filesystem. When those paths disagree with this
+        process's, every tool mounts an empty directory, runs normally and
+        writes into nothing — the campaign looks healthy until someone opens a
+        report with no evidence in it.
+
+        Guessing at that from an environment variable was the earlier approach
+        and it was wrong twice over: the arithmetic had an off-by-one-directory
+        bug, and a heuristic cannot answer the question anyway. So this writes
+        a token into the workspace and has a container read it back.
+        """
+        token = uuid.uuid4().hex
+        sentinel = self.workspace / ".swarmstrike-mount-check"
+        try:
+            sentinel.write_text(token, encoding="utf-8")
+        except OSError as exc:
+            return False, f"the campaign workspace is not writable: {exc}"
+
+        try:
+            argv = self.policy.docker_argv(self.workspace, needs_raw_socket=False) + [
+                "cat", "/work/.swarmstrike-mount-check",
+            ]
+            process = await asyncio.create_subprocess_exec(
+                *argv,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                stdin=asyncio.subprocess.DEVNULL,
+            )
+            try:
+                out, err = await asyncio.wait_for(process.communicate(), timeout=60)
+            except asyncio.TimeoutError:
+                process.kill()
+                await process.communicate()
+                return False, "the mount check timed out starting a toolbox container"
+        finally:
+            sentinel.unlink(missing_ok=True)
+
+        if out.decode(errors="replace").strip() == token:
+            return True, "workspace mount verified"
+
+        detail = err.decode(errors="replace").strip().splitlines()
+        return False, (
+            f"a toolbox container could not read the campaign workspace "
+            f"({detail[-1] if detail else 'no output'}). It mounted "
+            f"{self.policy.mount_source(self.workspace)}, which is not where this "
+            f"process is writing. Tools would run and write into nothing. If "
+            f"swarmstrike is containerised, mount the campaigns directory at the "
+            f"same absolute path it has on the host, or set "
+            f"SWARMSTRIKE_HOST_WORKSPACE to the host path for it."
+        )
+
     async def preflight(self) -> tuple[bool, str]:
-        """Check Docker is reachable and the toolbox image is present."""
+        """Check Docker is reachable, the toolbox is present and mounts land."""
+
         try:
             process = await asyncio.create_subprocess_exec(
                 "docker", "image", "inspect", self.policy.image,
@@ -661,7 +761,12 @@ class ToolExecutor:
                 f"toolbox image {self.policy.image} is not available ({reason}). "
                 f"Build it with: docker build -t {self.policy.image} -f docker/Dockerfile.toolbox ."
             )
-        return True, f"toolbox image {self.policy.image} ready"
+
+        mounted, detail = await self.verify_mount()
+        if not mounted:
+            return False, detail
+
+        return True, f"toolbox image {self.policy.image} ready, {detail}"
 
     def manifest(self) -> str:
         """What ran this campaign, as JSON. Goes into the report appendix."""
