@@ -21,6 +21,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from .. import sensitive
 from ..approval import ApprovalGate, ApprovalRequest, AutoDenyGate
 from ..audit import AuditLog
 from ..killswitch import KillSwitch
@@ -333,11 +334,12 @@ class ToolExecutor:
         # Keep the full output on disk as the evidence of record, and give the
         # agent a bounded slice of it.
         output_path = self.output_dir / f"{self._sequence:04d}-{agent}-{tool_name}.txt"
-        output_path.write_text(
+        body = (
             f"$ {shlex.join(safe_argv)}\nexit={exit_code}\n\n{stdout}"
-            f"\n--- stderr ---\n{stderr}",
-            encoding="utf-8",
+            f"\n--- stderr ---\n{stderr}"
         )
+        output_path.write_text(body, encoding="utf-8")
+        self._mark_if_sensitive(agent, output_path, body)
 
         truncated = len(stdout) > AGENT_OUTPUT_LIMIT
         visible = stdout[:AGENT_OUTPUT_LIMIT] if truncated else stdout
@@ -553,10 +555,9 @@ class ToolExecutor:
         stderr = "\n".join(stderr_parts)
 
         output_path = self.output_dir / f"{self._sequence:04d}-{agent}-pipeline.txt"
-        output_path.write_text(
-            f"$ {rendered}\nexit={exit_code}\n\n{stdout}\n--- stderr ---\n{stderr}",
-            encoding="utf-8",
-        )
+        body = f"$ {rendered}\nexit={exit_code}\n\n{stdout}\n--- stderr ---\n{stderr}"
+        output_path.write_text(body, encoding="utf-8")
+        self._mark_if_sensitive(agent, output_path, body)
 
         truncated = len(stdout) > AGENT_OUTPUT_LIMIT
         self.audit.command(agent=agent, argv=[rendered], decision="allowed",
@@ -699,6 +700,32 @@ class ToolExecutor:
         except OSError:
             return False
         return any(marker in cgroup for marker in ("docker", "containerd", "kubepods"))
+
+    def _mark_if_sensitive(self, agent: str, output_path: Path, body: str) -> None:
+        """Note that a tool's output holds credential material the target returned.
+
+        The file is left exactly as the tool produced it. Proving an endpoint
+        exposes credentials means keeping what it returned, and an assessment
+        that shreds its own evidence has nothing to show. What this prevents is
+        holding that material without knowing it: it goes in a manifest beside
+        the output, into the audit chain, and into the report's handling note.
+        """
+        marking = sensitive.mark(self.output_dir, output_path.name, body)
+        if marking is None:
+            return
+
+        self.audit.record(
+            "output.sensitive",
+            agent=agent,
+            output=output_path.name,
+            kinds=list(marking.kinds),
+        )
+        self._emit(
+            "output.sensitive",
+            agent=agent,
+            output=output_path.name,
+            kinds=list(marking.kinds),
+        )
 
     async def probe_binaries(self, candidates: Sequence[str]) -> frozenset[str]:
         """Ask the toolbox image which of these it carries."""

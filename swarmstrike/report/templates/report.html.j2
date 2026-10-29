@@ -598,6 +598,30 @@ hr.sep{border:none;border-top:1px solid var(--grid);margin:36px 0 0}
   and was prevented. The full list is available on request.
 </p>
 {% endif %}
+{% if integrity.sensitive_outputs %}
+<h4>Credential material in the evidence</h4>
+<p>
+  {{ integrity.sensitive_outputs | length }} evidence file(s) contain credential
+  material that the assessed systems returned. They are listed because
+  demonstrating an exposure requires keeping what was exposed: the files were not
+  altered, and they should be handled as the credential material they contain —
+  stored as this engagement's classification requires, and destroyed with the rest
+  of the engagement data. Any credential appearing here should be treated as
+  compromised and rotated, whether or not the finding it evidences is remediated.
+</p>
+<table>
+  <thead><tr><th>Evidence file</th><th>Material</th></tr></thead>
+  <tbody>
+  {% for item in integrity.sensitive_outputs %}
+    <tr><td><code>{{ item.file }}</code></td><td>{{ item.kinds }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+<p style="font-size:.82rem;color:var(--text-secondary)">
+  This list is produced by pattern matching, so it is a floor rather than a
+  complete inventory: material in a form not recognised would not appear.
+</p>
+{% endif %}
 
 <h3>7.4 Remediation roadmap</h3>
 {% if roadmap %}

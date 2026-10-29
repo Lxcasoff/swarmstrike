@@ -22,6 +22,7 @@ from jinja2 import Environment, FileSystemLoader, StrictUndefined
 from ..audit import AuditLog
 from ..engagement import Engagement
 from ..knowledge import KnowledgeBase
+from ..sensitive import read_manifest as read_sensitive_manifest
 from .chains import prepare as prepare_chains
 from .cvss import severity_rank
 
@@ -197,11 +198,18 @@ class ReportBuilder:
             "SELECT COUNT(*) AS n FROM command_log WHERE campaign_id = ? AND decision = 'refused'",
             (self.campaign_id,),
         ).fetchone()["n"]
+        # Credential material a target handed back, which is in the output
+        # directory because it is the proof. The report says what is there so
+        # the evidence is handled as what it is rather than as ordinary logs.
+        marked = read_sensitive_manifest(self.audit.path.parent / "output")
         return {
             "entries": entries,
             "verdict": ("Verified — " + reason) if intact else ("FAILED — " + reason),
             "contract_fingerprint": self.engagement.integrity.fingerprint or "unsigned",
             "refusals": refusals,
+            "sensitive_outputs": [
+                {"file": m.path, "kinds": ", ".join(m.kinds)} for m in marked
+            ],
         }
 
     def _limits(self, counts: dict[str, int]) -> str:
