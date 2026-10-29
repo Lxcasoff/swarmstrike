@@ -62,8 +62,7 @@ the same mechanism that authorizes an internal engagement.
 ## Running a campaign
 
 ```sh
-swarmstrike run \
-    --engagement lab/engagement.yaml \
+swarmstrike run lab/engagement.yaml \
     --workspace lab/campaigns \
     --image swarmstrike/toolbox:minimal \
     --network swarmlab \
