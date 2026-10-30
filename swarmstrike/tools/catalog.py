@@ -19,6 +19,7 @@ from typing import Any
 
 from claude_agent_sdk import ToolAnnotations, create_sdk_mcp_server, tool
 
+from .. import acknowledge
 from ..engagement import Engagement
 from ..killswitch import KillSwitch
 from ..knowledge import Finding, KnowledgeBase
@@ -597,6 +598,35 @@ def build_knowledge_tools(ctx: CampaignContext) -> list[Any]:
         annotations=WRITES_STATE,
     )
     async def halt_campaign(args: dict[str, Any]) -> dict[str, Any]:
+        campaign_dir = ctx.killswitch.path.parent
+
+        # A condition the operator has already looked at and ruled on does not
+        # stop the campaign a second time. Without this a resumed campaign
+        # cannot get past the thing it halted for: the condition is still there,
+        # the next agent reaches it and halts again, and no report is ever
+        # produced. The ruling is disclosed in the report either way.
+        covered = acknowledge.covering(campaign_dir, args["reason"])
+        if covered is not None:
+            ctx.executor.audit.record(
+                "halt.overruled",
+                agent=args["agent"],
+                reason=args["reason"],
+                pattern=covered.pattern,
+                ruling=covered.ruling,
+                operator=covered.operator,
+            )
+            ctx.kb.add_note(args["agent"], "halt.overruled", args["reason"])
+            ctx.emit("halt.overruled", agent=args["agent"], reason=args["reason"],
+                     ruling=covered.ruling, operator=covered.operator)
+            return _text(
+                f"The campaign is NOT halted: {covered.operator} has already ruled on "
+                f"this condition.\n\nTheir decision: {covered.ruling}\n\n"
+                f"Record what you found as a finding and carry on with your task. Do "
+                f"not call halt_campaign again for this condition. If you have found "
+                f"something materially different from what was ruled on, halt for that "
+                f"instead and say what is different."
+            )
+
         reason = f"halted by {args['agent']}: {args['reason']}"
         ctx.killswitch.engage(reason)
         ctx.kb.add_note(args["agent"], "halt", args["reason"])

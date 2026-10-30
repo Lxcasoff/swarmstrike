@@ -374,6 +374,23 @@ Refusals are expected and are evidence that the scope boundary held: they are
 cases where the assessment attempted something the engagement contract did not
 permit, and was prevented. The full list is available on request.
 {% endif %}
+{% if integrity.overruled_halts %}
+### Halt conditions raised and overruled
+
+The assessment can stop itself: an assessor that sees a condition the contract
+says to halt on stops the whole campaign rather than continuing. The following
+conditions were raised, reviewed by the named operator, and ruled on so that
+testing could continue. They are recorded here because an override of that
+guardrail is not something a report may be silent about.
+
+{% for item in integrity.overruled_halts %}
+**{{ item.condition }}** — raised {{ item.raised }} time(s)
+
+> {{ item.ruling }}
+>
+> — {{ item.operator }}
+{% endfor %}
+{% endif %}
 {% if integrity.sensitive_outputs %}
 ### Credential material in the evidence
 

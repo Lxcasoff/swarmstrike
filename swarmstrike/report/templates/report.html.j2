@@ -598,6 +598,23 @@ hr.sep{border:none;border-top:1px solid var(--grid);margin:36px 0 0}
   and was prevented. The full list is available on request.
 </p>
 {% endif %}
+{% if integrity.overruled_halts %}
+<h4>Halt conditions raised and overruled</h4>
+<p>
+  The assessment can stop itself: an assessor that sees a condition the contract
+  says to halt on stops the whole campaign rather than continuing. The following
+  conditions were raised, reviewed by the named operator, and ruled on so that
+  testing could continue. They are recorded here because an override of that
+  guardrail is not something a report may be silent about.
+</p>
+{% for item in integrity.overruled_halts %}
+<blockquote>
+  <p><strong>{{ item.condition }}</strong> — raised {{ item.raised }} time(s)</p>
+  <p>{{ item.ruling }}</p>
+  <p style="font-size:.82rem;color:var(--text-secondary)">— {{ item.operator }}</p>
+</blockquote>
+{% endfor %}
+{% endif %}
 {% if integrity.sensitive_outputs %}
 <h4>Credential material in the evidence</h4>
 <p>

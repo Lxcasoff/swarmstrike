@@ -19,6 +19,7 @@ from zoneinfo import ZoneInfo
 
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
 
+from ..acknowledge import load as load_rulings
 from ..audit import AuditLog
 from ..engagement import Engagement
 from ..knowledge import KnowledgeBase
@@ -210,7 +211,36 @@ class ReportBuilder:
             "sensitive_outputs": [
                 {"file": m.path, "kinds": ", ".join(m.kinds)} for m in marked
             ],
+            "overruled_halts": self._overruled_halts(),
         }
+
+    def _overruled_halts(self) -> list[dict[str, str]]:
+        """Halts an agent raised that an operator had already ruled on.
+
+        An override of the campaign's strongest guardrail is not something the
+        report may be silent about: it names the condition, the decision in the
+        operator's own words, and who made it.
+        """
+        campaign_dir = self.audit.path.parent
+        rulings = {r.pattern: r for r in load_rulings(campaign_dir)}
+        if not rulings:
+            return []
+
+        raised: dict[str, int] = {}
+        for entry in self.audit.entries():
+            if entry.event == "halt.overruled":
+                pattern = str(entry.data.get("pattern", ""))
+                raised[pattern] = raised.get(pattern, 0) + 1
+
+        return [
+            {
+                "condition": ruling.pattern,
+                "ruling": ruling.ruling,
+                "operator": ruling.operator,
+                "raised": raised.get(pattern, 0),
+            }
+            for pattern, ruling in sorted(rulings.items())
+        ]
 
     def _limits(self, counts: dict[str, int]) -> str:
         roe = self.engagement.rules_of_engagement

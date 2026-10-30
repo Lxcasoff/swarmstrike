@@ -455,6 +455,71 @@ def toolbox(
     )
 
 
+@app.command("acknowledge")
+def acknowledge_halt(
+    campaign_id: str = typer.Argument(..., help="Campaign whose halt was reviewed."),
+    pattern: str = typer.Option(
+        ..., "--pattern",
+        help="Text from the halt reason that names the condition you are ruling on.",
+    ),
+    ruling: str = typer.Option(
+        ..., "--ruling", help="Your decision, in your own words. It goes in the report.",
+    ),
+    operator: str = typer.Option(..., "--operator", help="Who is making this ruling."),
+    workspace: Path = typer.Option(
+        Path("campaigns"), "--workspace", help="Where campaigns live.",
+    ),
+) -> None:
+    """Rule on a halt so a resumed campaign can get past it.
+
+    An agent that halts is making a judgment about what it found, and the thing
+    it found is still there: clear the HALT file, resume, and the next agent
+    reaches the same endpoint and halts again. Without a record of your answer
+    a resume cannot finish, and the campaign never produces a report.
+
+    This weakens the strongest guardrail in the tool, so it leaves marks. The
+    ruling only exists because you ran this command; relying on it is written
+    into the audit chain; and the report discloses every halt that was
+    overruled, in your words, with your name against it.
+    """
+    from . import acknowledge as rulings
+
+    campaign_dir = workspace / campaign_id
+    if not campaign_dir.is_dir():
+        _fail(f"no campaign at {campaign_dir}")
+
+    halt = campaign_dir / "HALT"
+    if halt.is_file():
+        console.print(Panel(
+            halt.read_text(encoding="utf-8").strip(),
+            title="The halt you are ruling on", border_style="yellow",
+        ))
+
+    try:
+        entry = rulings.record(
+            campaign_dir, pattern=pattern, ruling=ruling, operator=operator,
+        )
+    except rulings.RulingError as exc:
+        _fail(str(exc))
+
+    AuditLog(campaign_dir / "audit.jsonl").record(
+        "halt.ruling_recorded",
+        pattern=entry.pattern,
+        ruling=entry.ruling,
+        operator=entry.operator,
+    )
+
+    console.print(f"[bold green]✓[/] ruling recorded for {campaign_id}")
+    console.print(f"  condition  [cyan]{entry.pattern}[/]")
+    console.print(f"  decision   {entry.ruling}")
+    console.print(f"  operator   {entry.operator}")
+    console.print(
+        "\n[dim]A halt raised for this condition will now be declined and the agent "
+        "told what you decided. Clear the HALT file and resume with "
+        "--resume to continue.[/]"
+    )
+
+
 @app.command("probe")
 def probe(
     image: str = typer.Option("swarmstrike/toolbox:latest", "--image"),
