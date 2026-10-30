@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Running swarmstrike</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* Layout: one measured column of prose, with command blocks and tables
+   allowed to run wider; a slim sticky rail of section links above it. */
+:root {
+  --ink:        #141a22;
+  --ink-soft:   #475568;
+  --ink-faint:  #76839a;
+  --paper:      #f6f7f9;
+  --card:       #ffffff;
+  --rule:       #dde2ea;
+  --accent:     #0f6f83;
+  --accent-dim: #e2f0f3;
+  --allow:      #1d6f45;
+  --warn:       #8a5a06;
+  --refuse:     #a3262b;
+  --font-display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --font-body:    "Source Sans 3", -apple-system, "Segoe UI", sans-serif;
+  --font-mono:    "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ink:        #e6eaf1;
+    --ink-soft:   #a3aec0;
+    --ink-faint:  #76839a;
+    --paper:      #0f141b;
+    --card:       #161d26;
+    --rule:       #2a3442;
+    --accent:     #4fc3d9;
+    --accent-dim: #16323a;
+    --allow:      #5fc08a;
+    --warn:       #d9a648;
+    --refuse:     #e8767c;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --ink:        #e6eaf1;
+  --ink-soft:   #a3aec0;
+  --ink-faint:  #76839a;
+  --paper:      #0f141b;
+  --card:       #161d26;
+  --rule:       #2a3442;
+  --accent:     #4fc3d9;
+  --accent-dim: #16323a;
+  --allow:      #5fc08a;
+  --warn:       #d9a648;
+  --refuse:     #e8767c;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 400 17px/1.65 var(--font-body);
+}
+.wrap { max-width: 920px; margin: 0 auto; padding: 0 16px; }
+
+/* --- Header ------------------------------------------------------------- */
+header.top {
+  border-bottom: 1px solid var(--rule);
+  background: var(--card);
+}
+.masthead { padding: 40px 0 28px; }
+.eyebrow {
+  font: 500 12px/1 var(--font-mono);
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin: 0 0 14px;
+}
+h1 {
+  font: 700 clamp(30px, 5.6vw, 44px)/1.1 var(--font-display);
+  letter-spacing: -.02em;
+  margin: 0 0 14px;
+  text-wrap: balance;
+}
+.standfirst {
+  font-size: 19px;
+  color: var(--ink-soft);
+  max-width: 64ch;
+  margin: 0;
+}
+nav.rail {
+  position: sticky; top: 0; z-index: 10;
+  background: var(--card);
+  border-bottom: 1px solid var(--rule);
+  overflow-x: auto;
+}
+nav.rail ol {
+  display: flex; gap: 0; list-style: none;
+  margin: 0 auto; padding: 0 16px; max-width: 920px;
+  font: 500 13px/1 var(--font-mono);
+  white-space: nowrap;
+}
+nav.rail a {
+  display: block; padding: 13px 14px;
+  color: var(--ink-soft); text-decoration: none;
+  border-bottom: 2px solid transparent;
+}
+nav.rail a:hover { color: var(--accent); border-bottom-color: var(--accent); }
+nav.rail li:first-child a { padding-left: 0; }
+
+/* --- Prose -------------------------------------------------------------- */
+main { padding: 8px 0 72px; }
+section { padding-top: 48px; scroll-margin-top: 56px; }
+h2 {
+  font: 600 clamp(22px, 3.4vw, 28px)/1.25 var(--font-display);
+  letter-spacing: -.01em;
+  margin: 0 0 6px;
+  text-wrap: balance;
+}
+h2 .num {
+  font: 500 13px/1 var(--font-mono);
+  color: var(--accent);
+  display: block; margin-bottom: 10px;
+}
+h3 {
+  font: 600 18px/1.35 var(--font-display);
+  margin: 34px 0 8px;
+  text-wrap: balance;
+}
+p, ul, ol.steps { max-width: 68ch; }
+p { margin: 0 0 16px; }
+a { color: var(--accent); text-underline-offset: 2px; }
+code {
+  font: 400 .88em/1.4 var(--font-mono);
+  background: var(--accent-dim);
+  color: var(--ink);
+  padding: .12em .34em;
+  border-radius: 3px;
+}
+strong { font-weight: 600; }
+.lede { font-size: 18px; color: var(--ink-soft); max-width: 66ch; }
+hr { border: 0; border-top: 1px solid var(--rule); margin: 44px 0 0; }
+
+/* --- Command blocks ----------------------------------------------------- */
+pre {
+  font: 400 14px/1.6 var(--font-mono);
+  background: var(--card);
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--accent);
+  border-radius: 4px;
+  padding: 16px 18px;
+  margin: 0 0 18px;
+  overflow-x: auto;
+}
+pre code { background: none; padding: 0; font-size: inherit; }
+.cmt { color: var(--ink-faint); }
+.ok  { color: var(--allow); }
+.no  { color: var(--refuse); }
+.wn  { color: var(--warn); }
+
+/* --- Tables ------------------------------------------------------------- */
+.scroll { overflow-x: auto; margin: 0 0 20px; }
+table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 15.5px;
+  font-variant-numeric: tabular-nums;
+}
+th, td {
+  text-align: left;
+  padding: 9px 14px 9px 0;
+  border-bottom: 1px solid var(--rule);
+  vertical-align: top;
+}
+th {
+  font: 500 12px/1.3 var(--font-mono);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  white-space: nowrap;
+}
+td code { white-space: nowrap; }
+td:last-child, th:last-child { padding-right: 0; }
+
+/* --- Callouts ----------------------------------------------------------- */
+.note {
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--warn);
+  background: var(--card);
+  border-radius: 4px;
+  padding: 16px 18px;
+  margin: 0 0 20px;
+  max-width: 68ch;
+}
+.note.hard { border-left-color: var(--refuse); }
+.note p:last-child { margin-bottom: 0; }
+.note .label {
+  font: 500 11px/1 var(--font-mono);
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--warn);
+  display: block; margin-bottom: 8px;
+}
+.note.hard .label { color: var(--refuse); }
+
+/* --- Pipeline ----------------------------------------------------------- */
+.flow { display: grid; gap: 10px; margin: 0 0 24px; }
+.flow .stage {
+  display: grid;
+  grid-template-columns: 34px 1fr;
+  gap: 14px;
+  align-items: start;
+  background: var(--card);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  padding: 14px 16px;
+}
+.flow .n {
+  font: 500 12px/26px var(--font-mono);
+  text-align: center;
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+.flow h4 {
+  font: 600 15.5px/1.3 var(--font-display);
+  margin: 3px 0 4px;
+}
+.flow p { margin: 0; font-size: 15.5px; color: var(--ink-soft); max-width: 60ch; }
+
+/* --- Agent chips -------------------------------------------------------- */
+.chips { display: flex; flex-wrap: wrap; gap: 7px; margin: 0 0 18px; padding: 0; list-style: none; }
+.chips li {
+  font: 500 13px/1 var(--font-mono);
+  border: 1px solid var(--rule);
+  background: var(--card);
+  border-radius: 20px;
+  padding: 7px 13px;
+}
+.chips.gated li { border-style: dashed; color: var(--ink-soft); }
+
+/* --- Footer ------------------------------------------------------------- */
+footer {
+  border-top: 1px solid var(--rule);
+  background: var(--card);
+  padding: 28px 0 40px;
+  color: var(--ink-soft);
+  font-size: 15px;
+}
+footer p { max-width: 68ch; }
+
+@media (max-width: 560px) {
+  body { font-size: 16.5px; }
+  .masthead { padding: 30px 0 22px; }
+  pre { font-size: 13px; padding: 13px 14px; }
+  .flow .stage { grid-template-columns: 1fr; gap: 6px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap masthead">
+    <p class="eyebrow">swarmstrike v1.0.0 · operator guide</p>
+    <h1>Running swarmstrike</h1>
+    <p class="standfirst">A team of specialist agents works an authorized penetration test, challenges each other's findings, and produces a report. This is how it fits together, and how you drive it yourself.</p>
+  </div>
+</header>
+
+<nav class="rail" aria-label="Sections">
+  <ol>
+    <li><a href="#start">Get it running</a></li>
+    <li><a href="#contract">The contract</a></li>
+    <li><a href="#safety">Safety model</a></li>
+    <li><a href="#console">The console</a></li>
+    <li><a href="#campaign">A campaign</a></li>
+    <li><a href="#team">The team</a></li>
+    <li><a href="#report">The report</a></li>
+    <li><a href="#halt">Halts</a></li>
+    <li><a href="#reference">Reference</a></li>
+    <li><a href="#limits">Limits</a></li>
+  </ol>
+</nav>
+
+<main class="wrap">
+
+<div class="note hard" style="margin-top:40px">
+  <span class="label">Before anything else</span>
+  <p>This runs against systems you are authorized to test, and it enforces that in code rather than asking you to remember it. It will not start without a signed engagement contract, and it refuses commands outside that contract's scope at the moment they would run. If you do not hold written authorization for the targets, there is nothing here for you.</p>
+</div>
+
+<!-- ================================================================= -->
+<section id="start">
+  <h2><span class="num">01</span>Get it running</h2>
+  <p class="lede">One command does everything a script is allowed to do.</p>
+
+<pre><code>git clone https://github.com/Lxcasoff/swarmstrike
+cd swarmstrike
+./install.sh</code></pre>
+
+  <p>It checks your prerequisites, installs the package with the dashboard, builds the toolbox image the agents' commands run inside, generates a signing key into <code>.env</code> at mode 600, and scaffolds a contract. Running it again is safe: a key, a contract or an image that already exists is left alone.</p>
+
+  <p>You need Docker and Python 3.11+. Node 20+ as well, because the agent harness drives the Claude Code CLI, which is a Node program — or skip Node and use the server container, which carries its own. Where the full toolbox cannot build for lack of a package mirror, the script falls back to a minimal image with curl, nuclei, httpx and ffuf, and tells you it did.</p>
+
+  <h3>The three steps the script will not take</h3>
+  <p>It stops before signing the contract. That is deliberate: the contract is the written authorization the whole tool answers to, and a script that signed one anyway would be forging exactly the thing the rest of the design exists to enforce.</p>
+
+<pre><code><span class="cmt"># 1. Say who authorized this test, against what, and until when.</span>
+$EDITOR engagement.yaml
+
+<span class="cmt"># 2. Sign it. Any edit after this point is detected and refuses the campaign.</span>
+source .env
+swarmstrike engagement sign engagement.yaml
+
+<span class="cmt"># 3. Confirm it says what you think it says. Do this every engagement.</span>
+swarmstrike engagement check engagement.yaml app.client.example 8.8.8.8</code></pre>
+
+  <h3>Then run it</h3>
+<pre><code>swarmstrike run engagement.yaml --tui   <span class="cmt"># live view in the terminal</span>
+swarmstrike serve                       <span class="cmt"># http://127.0.0.1:8787</span></code></pre>
+
+  <p>To see the interface before you have a contract at all, start the server and open <code>http://127.0.0.1:8787/?demo</code>. That replays a scripted campaign through the same renderers the live view uses, with no backend and no target contacted.</p>
+</section>
+
+<hr>
+
+<!-- ================================================================= -->
+<section id="contract">
+  <h2><span class="num">02</span>The contract is the authority</h2>
+  <p class="lede">Everything the swarm may do is declared in one signed file. Nothing else grants permission.</p>
+
+  <p><code>engagement.yaml</code> is not documentation that happens to sit beside the code. It is parsed, and the scope guard refuses commands against it at execution time. A target you forget to name is a target the swarm will refuse to touch; a rule you leave at its default is a rule that holds.</p>
+
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Block</th><th>What it decides</th></tr></thead>
+    <tbody>
+      <tr><td><code>engagement</code></td><td>Client, mission, and the written authorization: who signed it, their role, the reference. Reproduced on the report cover and in the audit header.</td></tr>
+      <tr><td><code>window</code></td><td>Start, end, timezone, and optional daily hours. A command outside the window is refused, not queued.</td></tr>
+      <tr><td><code>scope</code></td><td>Domains, addresses, ranges and URLs. Private ranges count only when named here. Loopback and link-local never count, whatever you write.</td></tr>
+      <tr><td><code>exclusions</code></td><td>Carve-outs that beat scope. An excluded address inside an in-scope range stays excluded.</td></tr>
+      <tr><td><code>rules_of_engagement</code></td><td>Intensity, request rate, and the forbidden list: destruction, denial of service, data modification, persistence, social engineering, pivoting out of scope.</td></tr>
+      <tr><td><code>credential_testing</code></td><td>Off unless you authorize it, and then only against the test accounts you name.</td></tr>
+      <tr><td><code>exploitation</code></td><td>Whether proof-of-concept exploitation is allowed, and whether it stops at proof.</td></tr>
+      <tr><td><code>red_team</code></td><td>The post-exploitation phases, each behind its own flag. All off by default.</td></tr>
+      <tr><td><code>arbitrary_execution</code></td><td>Which of the three execution tiers the agents get. Shell and scripts are off by default.</td></tr>
+      <tr><td><code>budget</code></td><td>Cost, token and wall-clock ceilings. The campaign stops at the first one reached, and still reviews and reports what it has.</td></tr>
+      <tr><td><code>contacts</code></td><td>Emergency stop contact, and the conditions that must halt the campaign.</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>The file is HMAC-signed with a key kept outside the repository. Verification is a fingerprint over the contract's canonical form, so reformatting it does not matter and changing a value does:</p>
+
+<pre><code>$ swarmstrike engagement verify engagement.yaml
+<span class="no">✗</span> contract content does not match its fingerprint — it was edited after signing</code></pre>
+</section>
+
+<hr>
+
+<!-- ================================================================= -->
+<section id="safety">
+  <h2><span class="num">03</span>What stops it going wrong</h2>
+  <p class="lede">The agents run unattended, so none of this is advice in a prompt. It is all in code.</p>
+
+  <h3>Scope is checked, not trusted</h3>
+  <p>Every command is parsed and placed against the contract before it runs. The guard fails closed: a command whose targets it cannot positively locate inside the contract is refused rather than let through. You can interrogate it directly, which is the right way to satisfy yourself before an engagement:</p>
+
+<pre><code>$ swarmstrike engagement check engagement.yaml www.example.org 8.8.8.8 169.254.169.254
+www.example.org   <span class="ok">allow</span>    scope.domain   matches in-scope domain example.org
+8.8.8.8           <span class="no">refuse</span>   scope.miss     not in any in-scope range
+169.254.169.254   <span class="no">refuse</span>   hard_deny      loopback/link-local, never in scope</code></pre>
+
+  <p>Loopback and link-local are refused regardless of the contract, which keeps the swarm off its own toolbox and off the cloud metadata endpoint. Forbidden categories are matched <em>before</em> scope is consulted, because an in-scope target does not license destroying it.</p>
+
+  <h3>Three execution tiers, and no shell by default</h3>
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Tier</th><th>What it is</th><th>What checks it</th></tr></thead>
+    <tbody>
+      <tr><td>Recipe</td><td>One of 73 declarative tool definitions, each with typed parameters.</td><td>Fully checked. The argument vector is built from validated parameters, so there is no string for an agent to inject into.</td></tr>
+      <tr><td>Pipeline</td><td>Output of one allowlisted binary piped into another, across containers.</td><td>Scope-checked, and the filter stages are restricted to a short allowlist that excludes every interpreter.</td></tr>
+      <tr><td>Shell</td><td>An arbitrary command or script. Off unless the contract turns it on.</td><td>Contained and logged, and it requires approval. It is <em>not</em> scope-enforced, and the tool says so rather than implying a guarantee it cannot keep.</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>Agents never execute on the host</h3>
+  <p>Every command runs in a throwaway container with a read-only root filesystem, all capabilities dropped, and bind mounts limited to the campaign workspace. Preflight proves the workspace mount actually landed by writing a token and having a container read it back — because the alternative is tools that run, write into nothing, and report success.</p>
+
+  <h3>Everything is recorded, and the record can be checked</h3>
+  <p>Commands are logged before they run, each entry hash-chained to the one before it and flushed to disk before the command starts. Afterwards the chain verifies, which is what lets a client audit what was actually done:</p>
+
+<pre><code>$ swarmstrike audit verify campaigns/ENG-2026-014-20261023-1412-a7f3c1
+<span class="ok">✓</span> chain intact across 1,284 entries (head 5e8671140d671e67…)</code></pre>
+
+  <p>One honest caveat: the agent name on each entry is a string the model fills in, because subagent identity does not reach the tool server. Every entry that carries a name also records whether it is one the campaign actually dispatched, so the field cannot quietly pass for identity.</p>
+
+  <h3>Approval is deny-by-default</h3>
+  <p>Anything that cannot be statically checked goes to an approval gate. Unattended, it denies: a campaign does not approve its own shell. In the console and the terminal view, requests appear for you to allow or refuse, with a timeout.</p>
+
+  <h3>Credential material the target hands back</h3>
+  <p>A read-only request against a broken authorization check can answer with a user table, and that lands in the evidence directory because it <em>is</em> the proof. Those files are not altered — an assessment that shreds its own evidence has nothing to show — but they are inventoried beside the output, recorded in the audit chain, and named in the report with instructions to treat the credentials as compromised.</p>
+
+  <div class="note">
+    <span class="label">Two things with no technical guard</span>
+    <p>The dashboard has no authentication and binds to localhost for that reason. A campaign record describes unremediated vulnerabilities in a client's systems, so moving it anywhere else needs a deliberate decision and something in front of it.</p>
+    <p>The server container mounts the Docker socket, because it starts a toolbox container per command. Socket access is equivalent to root on the host, so run it on a machine you treat as dedicated to the engagement.</p>
+  </div>
+</section>
+
+<hr>
+
+<!-- ================================================================= -->
+<section id="console">
+  <h2><span class="num">04</span>The console</h2>
+  <p class="lede"><code>swarmstrike serve</code>, then <code>http://127.0.0.1:8787</code>. Eight views over one running campaign.</p>
+
+  <p>You launch from the browser: pick the specialists, point at the contract, and start. Each agent appears as an avatar whose state comes from real events — working while a tool runs, thinking while it reasons over a finding, a burst when it proposes one, a shake when the contract refuses a command. The kill switch is in the header.</p>
+
+  <div class="scroll">
+  <table>
+    <thead><tr><th>View</th><th>What it shows</th></tr></thead>
+    <tbody>
+      <tr><td><strong>War room</strong></td><td>The agents, live, with the running log of what each is doing and the campaign's spend against its ceilings.</td></tr>
+      <tr><td><strong>Findings</strong></td><td>Each finding as it is proposed, and its status as it moves through review, challenge and arbitration. Click one to read the debate behind it.</td></tr>
+      <tr><td><strong>Attack paths</strong></td><td>Chains assembled from evidenced steps, not asserted in prose: a path exists here only because each step was recorded and linked.</td></tr>
+      <tr><td><strong>Facts</strong></td><td>The shared board every agent reads and writes, dead ends included. Negative results are first-class, so nobody re-runs what was already disproved.</td></tr>
+      <tr><td><strong>Agents</strong></td><td>The roster for this campaign, which model each runs on, and what it has spent.</td></tr>
+      <tr><td><strong>Tools</strong></td><td>Which recipes this contract authorizes, and which of those the toolbox image can actually run.</td></tr>
+      <tr><td><strong>Audit</strong></td><td>The hash-chained record, with its verification status, filterable by event.</td></tr>
+      <tr><td><strong>Contract</strong></td><td>The authority in force, with its fingerprint, so you can see what the campaign is running under.</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>Approval requests appear outside the tabs, so one cannot sit unnoticed behind a view you are not looking at.</p>
+</section>
+
+<hr>
+
+<!-- ================================================================= -->
+<section id="campaign">
+  <h2><span class="num">05</span>What a campaign actually does</h2>
+  <p class="lede">Not a fixed sequence of phases. A search, with the loop in code.</p>
+
+  <p>A playbook of phases spends budget on steps that stopped making sense three findings ago. Instead a lead reads the board each round and decides what is worth doing next; the round structure, the duplicate-work check, the no-progress guard and the budget check are in code, so they hold whether or not a model remembers them.</p>
+
+  <div class="flow">
+    <div class="stage"><span class="n">1</span><div><h4>Read the board</h4><p>The lead gets a digest: the attack surface so far, established facts, dead ends not to reassign, evidenced paths, findings proposed, work already claimed, and the tools each specialist can actually run on this image.</p></div></div>
+    <div class="stage"><span class="n">2</span><div><h4>Assign</h4><p>It returns a reading and a set of tasks, each to a named specialist with a task key. A key already claimed is refused, so two rounds cannot duplicate work.</p></div></div>
+    <div class="stage"><span class="n">3</span><div><h4>Work</h4><p>Specialists run in parallel up to a limit, each with only the tools its domain and the contract allow. They record assets, facts and proposed findings as they go, and evidence every claim.</p></div></div>
+    <div class="stage"><span class="n">4</span><div><h4>Stop or go again</h4><p>The loop ends on a round ceiling, a budget ceiling, the kill switch, the lead declaring the surface exhausted, or two consecutive rounds that produced nothing new.</p></div></div>
+    <div class="stage"><span class="n">5</span><div><h4>Challenge</h4><p>Every finding is reviewed by a second specialist from a different discipline, then attacked by a reviewer whose only job is to show it is a false positive, a duplicate or mis-scored. An arbiter rules.</p></div></div>
+    <div class="stage"><span class="n">6</span><div><h4>Report</h4><p>Assembled deterministically from the record, so it cannot claim a finding the database does not hold or a severity the arbiter did not set.</p></div></div>
+  </div>
+
+  <p>Useful flags: <code>--domain</code> to narrow the roster, <code>--search-rounds</code> to cap the loop, <code>--review-rounds</code> for the challenge depth, <code>--network</code> to reach targets on a Docker network, <code>--resume</code> to continue a campaign, and <code>--tui</code> for the terminal live view.</p>
+</section>
+
+<hr>
+
+<!-- ================================================================= -->
+<section id="team">
+  <h2><span class="num">06</span>Who is on the team</h2>
+  <p class="lede">Eight specialists, three reviewers, and six post-exploitation roles your contract has to switch on.</p>
+
+  <h3>Specialists</h3>
+  <ul class="chips">
+    <li>recon</li><li>network</li><li>web</li><li>api</li>
+    <li>cloud</li><li>ad</li><li>code</li><li>crypto</li>
+  </ul>
+
+  <h3>Challenge roles</h3>
+  <ul class="chips">
+    <li>skeptic</li><li>arbiter</li><li>reporter</li>
+  </ul>
+  <p>The skeptic argues against each finding, the arbiter rules on the disagreement, the reporter writes the narrative from the confirmed record.</p>
+
+  <h3>Red team — each behind its own contract flag</h3>
+  <ul class="chips gated">
+    <li>foothold</li><li>privesc</li><li>lateral</li>
+    <li>persistence</li><li>exfil</li><li>detection</li>
+  </ul>
+  <p>Off by default, and off individually: authorizing lateral movement does not authorize persistence. With a phase switched off, its tools are not merely refused — they are not offered, because an agent told a capability exists will keep spending budget reaching for it.</p>
+
+  <p>Work is routed by role rather than run on one model: the lead and the arbiter get the strongest model because their judgment compounds, specialists get a mid-tier model, and mechanical summarisation gets the cheap one. The contract's budget caps the total either way.</p>
+</section>
+
+<hr>
+
+<!-- ================================================================= -->
+<section id="report">
+  <h2><span class="num">07</span>What comes out</h2>
+  <p class="lede">A client deliverable in Markdown, HTML and PDF — not a scanner dump.</p>
+
+  <p>Testing follows PTES, web work follows the OWASP Testing Guide, and severities are CVSS v3.1. Nothing reaches the report that has not been reviewed, challenged and adjudicated.</p>
+
+  <div class="scroll">
+  <table>
+    <thead><tr><th>§</th><th>Section</th><th>Contents</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Executive summary</td><td>Overall risk in a sentence a non-technical reader can act on, the severity counts, and the ordered list of what to fix first.</td></tr>
+      <tr><td>2</td><td>Scope and authorization</td><td>What was in scope, what was excluded, and the rules of engagement — marked where they were enforced technically rather than by convention.</td></tr>
+      <tr><td>3</td><td>Methodology</td><td>The phases, the coverage figures, and how each finding was validated.</td></tr>
+      <tr><td>4</td><td>Confirmed findings</td><td>Per finding: description, impact, reproduction a client can run, remediation, CVSS vector with its sub-scores, MITRE ATT&amp;CK mapping, and the assessor note recording the challenge it survived.</td></tr>
+      <tr><td>5</td><td>Attack paths</td><td>Multi-step chains, each step evidenced. Where none was demonstrated it says so, and says that is a statement about what was shown rather than an assurance.</td></tr>
+      <tr><td>6</td><td>Unproven weaknesses</td><td>What was suspected but could not be confirmed inside the rules, handed to the client's team to verify.</td></tr>
+      <tr><td>7</td><td>Coverage</td><td>The attack surface identified, by asset type.</td></tr>
+      <tr><td>8</td><td>Remediation roadmap</td><td>Every confirmed finding in priority order with the concrete action.</td></tr>
+      <tr><td>9</td><td>Engagement record</td><td>Chain verification, contract fingerprint, commands issued and refused, any halt that was overruled and by whom, an inventory of evidence files holding credential material, and the limits of the assessment.</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+<pre><code>swarmstrike report campaigns/&lt;campaign-id&gt; -f all   <span class="cmt"># md, html, pdf</span>
+swarmstrike report campaigns/&lt;campaign-id&gt; --narrate <span class="cmt"># prose summary</span></code></pre>
+</section>
+
+<hr>
+
+<!-- ================================================================= -->
+<section id="halt">
+  <h2><span class="num">08</span>When it stops itself</h2>
+  <p class="lede">The agents have the stop button, and they are told to use it.</p>
+
+  <p>An agent that sees a service degrading, an asset that may belong to a third party, or exposed personal data halts the whole campaign rather than continuing. You can trip the same switch from the console header, or from any shell with <code>touch &lt;campaign-dir&gt;/HALT</code>. Findings gathered before the halt stay valid and are still reported.</p>
+
+  <p>A halt is a judgment about something the agent just found, and that something does not go away. Clear the file, resume, and the next agent reaches the same endpoint and halts again — so resuming needs a record of <em>your</em> answer:</p>
+
+<pre><code>swarmstrike acknowledge &lt;campaign-id&gt; \
+    --pattern "/rest/memories" \
+    --ruling "Stock seed data on a lab host the operator owns. Record it and continue." \
+    --operator "Your Name"</code></pre>
+
+  <p>A halt raised for a condition you have ruled on is declined, and the agent is told what you decided so it records a finding and carries on. This deliberately weakens the strongest guardrail in the tool, so it leaves marks:</p>
+
+  <ul>
+    <li>The ruling exists only because a person ran that command.</li>
+    <li>The pattern must name the condition. Matching is by substring, so a two-word pattern would overrule halts you have never seen — short ones are refused.</li>
+    <li>A ruling with no decision text, or no operator name, is refused.</li>
+    <li>Creating one and relying on one both go into the audit chain.</li>
+    <li>The report discloses every overruled halt, in your words, with your name against it.</li>
+    <li>An unreadable rulings file overrules nothing.</li>
+    <li>A ruling answers one condition. The campaign still halts for anything else.</li>
+  </ul>
+</section>
+
+<hr>
+
+<!-- ================================================================= -->
+<section id="reference">
+  <h2><span class="num">09</span>Command reference</h2>
+
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Command</th><th>What it does</th></tr></thead>
+    <tbody>
+      <tr><td><code>engagement init</code></td><td>Write a starter contract with every field to fill in.</td></tr>
+      <tr><td><code>engagement sign</code></td><td>Sign a contract so a campaign can run against it.</td></tr>
+      <tr><td><code>engagement verify</code></td><td>Check a contract has not been modified since signing.</td></tr>
+      <tr><td><code>engagement check</code></td><td>Ask the scope guard how it would rule on specific targets.</td></tr>
+      <tr><td><code>run</code></td><td>Run a campaign against a signed contract.</td></tr>
+      <tr><td><code>serve</code></td><td>Serve the console on localhost.</td></tr>
+      <tr><td><code>report</code></td><td>Rebuild the report from a campaign's record.</td></tr>
+      <tr><td><code>probe</code></td><td>Report which recipes a toolbox image can actually run.</td></tr>
+      <tr><td><code>acknowledge</code></td><td>Rule on a halt so a resumed campaign can get past it.</td></tr>
+      <tr><td><code>audit verify</code></td><td>Verify the hash chain has not been altered.</td></tr>
+      <tr><td><code>audit show</code></td><td>Print the record, filterable by event.</td></tr>
+      <tr><td><code>toolbox</code></td><td>Print the command that builds the toolbox image.</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>Practise on something you own first</h3>
+  <p>The repository ships a lab: two deliberately vulnerable applications on an isolated Docker network, and a contract that authorizes testing them. <code>lab/README.md</code> has the commands. Nothing leaves the host, no third party is involved, and it is the right place to learn what the console shows you before an engagement depends on it.</p>
+</section>
+
+<hr>
+
+<!-- ================================================================= -->
+<section id="limits">
+  <h2><span class="num">10</span>Where the line is</h2>
+  <p class="lede">Version 1.0 has been exercised end to end. It has not been exercised everywhere.</p>
+
+  <h3>Proven</h3>
+  <p>276 tests cover the contract and its signing, scope enforcement, the audit chain, the approval gate, the three execution tiers, the fact graph, the search loop, CVSS scoring, and the report's escaping of target-controlled evidence. Every command shape that must never reach a target has a test proving it does not.</p>
+
+  <p>Two full campaigns ran against the lab: 155 commands, nine confirmed findings including an unauthenticated SQL injection and a user-record disclosure, a chain verified across 186 entries, inside a $4 budget. Eight defects came out of those runs that no unit test would have found — a digest offering the lead tools the image did not carry, agent claims that never closed and stalled the search two rounds early, a comma-separated target list that read as no target at all, credential material written to evidence unflagged, a halt that made resuming impossible, and a fact link to a non-existent key that silently dropped the only attack-path step. Each is fixed, each has a test.</p>
+
+  <h3>Not proven</h3>
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Area</th><th>Status</th></tr></thead>
+    <tbody>
+      <tr><td>A real client engagement</td><td>The lab is a lab. The prompts in particular will want iteration against findings a client actually cares about.</td></tr>
+      <tr><td>Attack paths</td><td>Has never produced a chain from real data. On the lab engagement that is arguably correct — exploitation stopped at proof and authentication testing was unauthorized, so the findings are independent pre-auth disclosures with nothing to chain — but the section stays unproven.</td></tr>
+      <tr><td>Red team phases</td><td>Implemented, gated behind contract flags the lab contract left off.</td></tr>
+      <tr><td>Active Directory and cloud</td><td>Specialists and recipes exist. No target has been available to run them against.</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="note">
+    <span class="label">Start narrow</span>
+    <p>Before running this against anything real: read <code>swarmstrike/scope.py</code>, run <code>swarmstrike engagement check</code> against your contract until you are satisfied it refuses what it should, and start with a small roster on a small scope.</p>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <p>swarmstrike v1.0.0 · 73 tool recipes across 68 binaries · 276 tests · <a href="https://github.com/Lxcasoff/swarmstrike">github.com/Lxcasoff/swarmstrike</a></p>
+  </div>
+</footer>
+
+</body>
+</html>
