@@ -235,3 +235,34 @@ def test_claims_an_agent_opened_during_a_dispatch_close_with_it(kb) -> None:
     assert rows["web-self-staked-subtask"] is not None
     # Another agent's open claim is not this dispatch's to close.
     assert rows["api:a-different-agents-work"] is None
+
+
+def test_a_link_to_a_fact_that_does_not_exist_is_refused(kb) -> None:
+    """attack_paths() skips an edge whose endpoints it cannot resolve, so a
+    dangling link is not a broken link someone notices — it is a step that
+    vanishes. The lab campaign linked to `finding/f-003`, a finding id rather
+    than a fact key: the call succeeded, the agent believed it had recorded a
+    chain step, and the report said no path was evidenced."""
+    kb.upsert_fact("finding/ftp-null-byte-bypass", "extension allowlist bypassed", "api")
+
+    with pytest.raises(FactError, match="no such fact"):
+        kb.link_facts("finding/ftp-null-byte-bypass", "finding/f-003", "enables")
+
+    assert kb.fact_edges("enables") == []
+
+
+def test_the_refusal_says_a_finding_id_is_not_a_fact_key(kb) -> None:
+    kb.upsert_fact("finding/a", "a", "api")
+    with pytest.raises(FactError, match="not a fact key"):
+        kb.link_facts("finding/a", "finding/f-003", "enables")
+
+
+def test_a_link_between_two_recorded_facts_builds_a_path(kb) -> None:
+    kb.upsert_fact("finding/ftp-listing", "directory listing on /ftp", "web")
+    kb.upsert_fact("finding/ftp-bypass", "allowlist bypass serves the backups", "api")
+    assert kb.link_facts("finding/ftp-listing", "finding/ftp-bypass", "enables")
+
+    paths = kb.attack_paths()
+    assert [[step["fact_key"] for step in path] for path in paths] == [
+        ["finding/ftp-listing", "finding/ftp-bypass"]
+    ]

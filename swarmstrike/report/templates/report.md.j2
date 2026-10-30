@@ -375,6 +375,7 @@ cases where the assessment attempted something the engagement contract did not
 permit, and was prevented. The full list is available on request.
 {% endif %}
 {% if integrity.overruled_halts %}
+
 ### Halt conditions raised and overruled
 
 The assessment can stop itself: an assessor that sees a condition the contract
@@ -389,13 +390,15 @@ guardrail is not something a report may be silent about.
 > {{ item.ruling }}
 >
 > — {{ item.operator }}
+
 {% endfor %}
 {% endif %}
 {% if integrity.sensitive_outputs %}
+
 ### Credential material in the evidence
 
-{{ integrity.sensitive_outputs | length }} evidence file(s) contain credential
-material that the assessed systems returned. They are listed here because
+{{ integrity.sensitive_outputs | length }} evidence file(s) contain credential material
+that the assessed systems returned. They are listed here because
 demonstrating an exposure requires keeping what was exposed: the files were not
 altered, and they should be handled as the credential material they contain —
 stored as the engagement's classification requires, and destroyed with the rest
@@ -406,6 +409,7 @@ of the engagement data.
 {% for item in integrity.sensitive_outputs -%}
 | `{{ item.file }}` | {{ item.kinds }} |
 {% endfor %}
+
 Any credential appearing here should be treated as compromised and rotated,
 whether or not the finding it evidences is remediated.
 

@@ -585,6 +585,28 @@ class KnowledgeBase:
         parse_fact_key(dst)
         if src == dst:
             raise FactError("a fact cannot link to itself")
+
+        # Both ends have to be facts that exist. attack_paths() skips an edge
+        # whose endpoints it cannot resolve, so a dangling one is not a broken
+        # link that someone notices — it is a step that vanishes. The lab
+        # campaign linked to `finding/f-003`, which is a finding id and not a
+        # fact key; the call succeeded, the agent believed it had recorded a
+        # chain, and the report said no path was evidenced.
+        missing = [
+            key for key in (src, dst)
+            if self.conn.execute(
+                "SELECT 1 FROM fact WHERE campaign_id = ? AND fact_key = ?",
+                (self.campaign_id, key),
+            ).fetchone() is None
+        ]
+        if missing:
+            raise FactError(
+                f"no such fact: {', '.join(missing)}. Both ends of a link have to be "
+                f"facts you have recorded with record_fact, named by their fact key "
+                f"(category/slug). A finding id such as F-003 is not a fact key — "
+                f"record the fact first, or use list_facts to find the right key."
+            )
+
         cursor = self.conn.execute(
             """INSERT OR IGNORE INTO fact_edge
                (campaign_id, src_key, dst_key, relation, note, agent, created_at)
