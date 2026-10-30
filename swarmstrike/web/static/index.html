@@ -100,78 +100,156 @@ button{font-family:inherit;font-size:.82rem;cursor:pointer;border-radius:10px;tr
   font-variant-numeric:tabular-nums;
 }
 
-/* ─── the war room: 3D agent avatars ──────────────────────────────── */
-.room{padding:26px 18px 20px;display:grid;gap:30px 10px;
-  grid-template-columns:repeat(auto-fill,minmax(124px,1fr))}
+/* ─── the war room: the crew ───────────────────────────────────────────
+   Each agent is a little character built entirely from divs: no sprites, no
+   images, nothing to load. Its posture is the state — arms down and breathing
+   when idle, hammering a keyboard while a tool runs, a hand to the chin while
+   it reasons, both arms up when it finds something, hunched and grey when the
+   contract refuses it. The hue comes from the roster, so a discipline keeps
+   its colour across every view. */
+.room{padding:30px 18px 22px;display:grid;gap:34px 10px;
+  grid-template-columns:repeat(auto-fill,minmax(128px,1fr))}
 
 .agent{display:flex;flex-direction:column;align-items:center;gap:8px;position:relative}
 
-/* The stage gives the orb its perspective and holds the ground shadow. */
-.stage{width:92px;height:92px;perspective:520px;position:relative;display:grid;place-items:center}
+/* The stage holds the perspective and the ground shadow the crew stands on. */
+.stage{width:96px;height:104px;perspective:620px;position:relative;
+  display:flex;align-items:flex-end;justify-content:center;padding-bottom:12px}
 .shadow{
-  position:absolute;bottom:-9px;left:50%;translate:-50% 0;width:52px;height:11px;border-radius:50%;
-  background:radial-gradient(ellipse,hsl(var(--hue) 80% 50% / .34),transparent 70%);
+  position:absolute;bottom:4px;left:50%;translate:-50% 0;width:46px;height:10px;border-radius:50%;
+  background:radial-gradient(ellipse,hsl(var(--hue) 80% 50% / .36),transparent 72%);
   filter:blur(3px);animation:shadowPulse 4.2s ease-in-out infinite;
 }
-@keyframes shadowPulse{0%,100%{width:52px;opacity:.75}50%{width:40px;opacity:.42}}
+@keyframes shadowPulse{0%,100%{width:46px;opacity:.72}50%{width:38px;opacity:.44}}
 
-.orb{
-  width:70px;height:70px;position:relative;transform-style:preserve-3d;
-  animation:float 4.2s ease-in-out infinite;
+/* ── the body ── */
+.guy{
+  position:relative;width:54px;height:78px;transform-style:preserve-3d;
+  animation:breathe 4.4s ease-in-out infinite;
+  --skin:hsl(var(--hue) 74% 56%);
+  --skin-lit:hsl(var(--hue) 92% 74%);
+  --skin-dark:hsl(var(--hue) 70% 32%);
+  --skin-deep:hsl(var(--hue) 68% 22%);
 }
-@keyframes float{
-  0%,100%{transform:translateY(0) rotateX(6deg) rotateY(-9deg)}
-  50%{transform:translateY(-9px) rotateX(-4deg) rotateY(9deg)}
+@keyframes breathe{
+  0%,100%{transform:translateY(0) rotateY(-8deg)}
+  50%{transform:translateY(-3px) rotateY(8deg)}
 }
-.orb .ball{
-  position:absolute;inset:0;border-radius:50%;display:grid;place-items:center;font-size:2rem;
-  line-height:1;
-  background:
-    radial-gradient(circle at 33% 27%,
-      hsl(var(--hue) 96% 80%) 0%, hsl(var(--hue) 88% 58%) 38%,
-      hsl(var(--hue) 82% 36%) 72%, hsl(var(--hue) 78% 22%) 100%);
+
+/* antenna, with the status light on top */
+.antenna{position:absolute;top:-11px;left:50%;translate:-50% 0;width:2px;height:11px;
+  background:linear-gradient(var(--skin-lit),var(--skin-dark));border-radius:2px}
+.antenna i{
+  position:absolute;top:-5px;left:50%;translate:-50% 0;width:7px;height:7px;border-radius:50%;
+  background:hsl(var(--hue) 90% 68%);box-shadow:0 0 8px 2px hsl(var(--hue) 90% 60% / .75);
+}
+
+/* head: a rounded block lit from the upper left, with a visor */
+.head{
+  position:absolute;top:0;left:50%;translate:-50% 0;width:40px;height:34px;border-radius:13px;
+  background:linear-gradient(152deg,var(--skin-lit) 0%,var(--skin) 44%,var(--skin-dark) 100%);
   box-shadow:
-    inset -9px -11px 20px hsl(var(--hue) 72% 14% / .85),
-    inset 7px 9px 18px #ffffff40,
-    0 16px 28px -8px hsl(var(--hue) 80% 18% / .8);
-  text-shadow:0 2px 5px #0008;
-  transform:translateZ(14px);
+    inset -5px -6px 11px hsl(var(--hue) 70% 16% / .6),
+    inset 4px 4px 8px #ffffff4d,
+    0 7px 13px -4px hsl(var(--hue) 75% 14% / .6);
+  transform:translateZ(9px);
 }
-/* specular highlight */
-.orb .ball::after{
-  content:"";position:absolute;top:9%;left:19%;width:34%;height:26%;border-radius:50%;
-  background:linear-gradient(#ffffffcc,#ffffff12);filter:blur(2.5px);transform:rotate(-22deg);
+/* ears / headphones */
+.head::before,.head::after{
+  content:"";position:absolute;top:12px;width:6px;height:11px;border-radius:3px;
+  background:linear-gradient(var(--skin-dark),var(--skin-deep));
 }
-/* the status ring sits behind the ball in 3D */
-.ring{
-  position:absolute;inset:-9px;border-radius:50%;border:2px solid hsl(var(--hue) 85% 60% / .3);
-  transform:translateZ(-6px) rotateX(74deg);
+.head::before{left:-4px}
+.head::after{right:-4px}
+
+.visor{
+  position:absolute;top:9px;left:5px;right:5px;height:15px;border-radius:8px;
+  background:linear-gradient(165deg,#0b1222 0%,#161f38 62%,#0b1222 100%);
+  box-shadow:inset 0 1px 3px #000a, 0 0 0 1px hsl(var(--hue) 60% 24% / .9);
+  display:flex;align-items:center;justify-content:center;gap:7px;overflow:hidden;
 }
+/* a faint sheen across the glass */
+.visor::after{
+  content:"";position:absolute;top:0;left:-30%;width:40%;height:100%;
+  background:linear-gradient(100deg,transparent,#ffffff2e,transparent);
+  transform:skewX(-18deg);
+}
+.eye{
+  width:6px;height:6px;border-radius:50%;background:#dff3ff;
+  box-shadow:0 0 6px 1px hsl(var(--hue) 95% 72% / .9);
+  animation:blink 5.2s infinite;
+}
+.eye.r{animation-delay:.14s}
+@keyframes blink{0%,94%,100%{transform:scaleY(1)}96%{transform:scaleY(.12)}}
+
+/* torso, with the discipline's badge on the chest */
+.torso{
+  position:absolute;top:33px;left:50%;translate:-50% 0;width:34px;height:30px;
+  border-radius:11px 11px 8px 8px;
+  background:linear-gradient(158deg,var(--skin) 0%,var(--skin-dark) 72%,var(--skin-deep) 100%);
+  box-shadow:
+    inset -4px -4px 9px hsl(var(--hue) 70% 14% / .65),
+    inset 3px 3px 7px #ffffff3d,
+    0 8px 14px -5px hsl(var(--hue) 75% 14% / .55);
+  transform:translateZ(5px);
+  display:grid;place-items:center;
+}
+.badge{
+  font-size:13px;line-height:1;filter:drop-shadow(0 1px 2px #0009);
+  background:#0b122299;border-radius:50%;width:21px;height:21px;
+  display:grid;place-items:center;box-shadow:inset 0 0 0 1px #ffffff1f;
+}
+
+/* arms: pinned at the shoulder so a rotation reads as a swing */
+.arm{
+  position:absolute;top:36px;width:7px;height:23px;border-radius:4px;
+  background:linear-gradient(var(--skin) 10%,var(--skin-dark));
+  transform-origin:50% 3px;transform:translateZ(2px);
+  transition:transform .22s ease;
+}
+.arm.l{left:5px;rotate:7deg}
+.arm.r{right:5px;rotate:-7deg}
+
+/* legs */
+.legs{position:absolute;top:62px;left:50%;translate:-50% 0;display:flex;gap:7px}
+.legs i{width:8px;height:15px;border-radius:3px 3px 5px 5px;
+  background:linear-gradient(var(--skin-dark),var(--skin-deep))}
 
 /* ── state: idle ── */
-.agent[data-state="idle"] .ring{border-style:dashed;opacity:.5}
+.agent[data-state="idle"] .antenna i{animation:ledSlow 3.4s ease-in-out infinite}
+@keyframes ledSlow{0%,100%{opacity:.4}50%{opacity:1}}
 
-/* ── state: working — spinning sweep ── */
-.agent[data-state="working"] .orb{animation:float 2.1s ease-in-out infinite}
-.agent[data-state="working"] .ring{
-  border-color:hsl(var(--hue) 90% 62% / .85);
-  border-top-color:transparent;border-left-color:transparent;
-  animation:sweep 1.05s linear infinite;
-  box-shadow:0 0 18px hsl(var(--hue) 90% 55% / .5);
+/* ── state: working — hammering a keyboard, radar sweeping the ground ── */
+.agent[data-state="working"] .guy{animation:breathe 2.2s ease-in-out infinite}
+.agent[data-state="working"] .arm{height:20px}
+.agent[data-state="working"] .arm.l{animation:typeL .3s ease-in-out infinite alternate}
+.agent[data-state="working"] .arm.r{animation:typeR .3s ease-in-out infinite alternate}
+@keyframes typeL{from{rotate:19deg;height:20px}to{rotate:31deg;height:18px}}
+@keyframes typeR{from{rotate:-31deg;height:18px}to{rotate:-19deg;height:20px}}
+.agent[data-state="working"] .antenna i{animation:ledFast .5s steps(2) infinite}
+@keyframes ledFast{0%{opacity:1}50%{opacity:.25}}
+/* the keyboard appears only while there is something to type on */
+.agent[data-state="working"] .stage::before{
+  content:"";position:absolute;bottom:34px;left:50%;translate:-50% 0;
+  width:34px;height:4px;border-radius:2px;
+  background:linear-gradient(hsl(var(--hue) 55% 52%),hsl(var(--hue) 50% 24%));
+  box-shadow:0 1px 5px #000a, 0 0 7px hsl(var(--hue) 85% 55% / .4);
 }
-@keyframes sweep{to{transform:translateZ(-6px) rotateX(74deg) rotateZ(360deg)}}
 .agent[data-state="working"] .stage::after{
-  content:"";position:absolute;inset:-14px;border-radius:50%;
-  border:1px solid hsl(var(--hue) 90% 60% / .35);
+  content:"";position:absolute;bottom:0;left:50%;translate:-50% 0;
+  width:54px;height:14px;border-radius:50%;
+  border:1px solid hsl(var(--hue) 90% 60% / .4);
   animation:radar 1.9s ease-out infinite;
 }
-@keyframes radar{0%{transform:scale(.62);opacity:.85}100%{transform:scale(1.35);opacity:0}}
+@keyframes radar{0%{transform:scale(.5);opacity:.9}100%{transform:scale(1.5);opacity:0}}
 
-/* ── state: thinking — rising thought bubbles ── */
-.agent[data-state="thinking"] .orb{animation:float 5.6s ease-in-out infinite}
-.agent[data-state="thinking"] .ring{border-color:#a78bfa66;animation:breathe 2.4s ease-in-out infinite}
-@keyframes breathe{0%,100%{opacity:.35;inset:-9px}50%{opacity:.9;inset:-13px}}
-.bubbles{position:absolute;top:-6px;right:4px;width:28px;height:34px;pointer-events:none;opacity:0;transition:.3s}
+/* ── state: thinking — a hand to the chin, bubbles rising ── */
+.agent[data-state="thinking"] .guy{animation:breathe 6s ease-in-out infinite}
+.agent[data-state="thinking"] .arm.r{rotate:-152deg;height:17px}
+.agent[data-state="thinking"] .antenna i{
+  background:#c4b5fd;box-shadow:0 0 9px 2px #a78bfa99;animation:ledSlow 2.4s ease-in-out infinite}
+.bubbles{position:absolute;top:-2px;right:2px;width:30px;height:36px;pointer-events:none;
+  opacity:0;transition:.3s}
 .agent[data-state="thinking"] .bubbles{opacity:1}
 .bubbles i{
   position:absolute;bottom:0;border-radius:50%;background:#c4b5fd;opacity:0;
@@ -186,34 +264,38 @@ button{font-family:inherit;font-size:.82rem;cursor:pointer;border-radius:10px;tr
   100%{opacity:0;transform:translateY(-26px) scale(1.15)}
 }
 
-/* ── state: found — a pop and a burst ── */
-.agent[data-state="found"] .orb{animation:pop .72s cubic-bezier(.3,1.7,.4,1)}
-@keyframes pop{
-  0%{transform:scale(1) rotateY(0)}
-  32%{transform:scale(1.28) rotateY(190deg)}
-  62%{transform:scale(.94) rotateY(350deg)}
-  100%{transform:scale(1) rotateY(360deg)}
+/* ── state: found — both arms up, a jump, a burst ── */
+.agent[data-state="found"] .guy{animation:cheer .8s cubic-bezier(.3,1.6,.4,1)}
+@keyframes cheer{
+  0%{transform:translateY(0)}
+  30%{transform:translateY(-15px) rotateY(16deg)}
+  58%{transform:translateY(-2px) rotateY(-10deg)}
+  100%{transform:translateY(0) rotateY(-8deg)}
 }
-.agent[data-state="found"] .ball{box-shadow:
-  inset -9px -11px 20px hsl(var(--hue) 72% 14% / .85),
-  inset 7px 9px 18px #ffffff40,
-  0 0 34px 6px #fbbf2466, 0 16px 28px -8px hsl(var(--hue) 80% 18% / .8)}
+.agent[data-state="found"] .arm.l{rotate:168deg}
+.agent[data-state="found"] .arm.r{rotate:-168deg}
+.agent[data-state="found"] .antenna i{background:#fde68a;box-shadow:0 0 14px 4px #fbbf24cc}
 .agent[data-state="found"] .stage::before{
-  content:"";position:absolute;inset:-18px;border-radius:50%;
-  background:radial-gradient(circle,#fbbf2433,transparent 62%);
+  content:"";position:absolute;inset:auto 0 6px;height:62px;
+  background:radial-gradient(circle at 50% 70%,#fbbf2438,transparent 62%);
   animation:burst .9s ease-out forwards;
 }
-@keyframes burst{0%{transform:scale(.4);opacity:1}100%{transform:scale(1.6);opacity:0}}
+@keyframes burst{0%{transform:scale(.4);opacity:1}100%{transform:scale(1.5);opacity:0}}
 
 /* ── state: blocked — refused by the contract ── */
-.agent[data-state="blocked"] .orb{animation:shake .5s cubic-bezier(.36,.07,.19,.97) 2}
-@keyframes shake{
-  10%,90%{transform:translateX(-2px) rotateZ(-3deg)}
-  30%,70%{transform:translateX(3px) rotateZ(4deg)}
-  50%{transform:translateX(-4px) rotateZ(-5deg)}
+.agent[data-state="blocked"] .guy{animation:recoil .5s cubic-bezier(.36,.07,.19,.97) 2}
+@keyframes recoil{
+  10%,90%{transform:translateX(-3px) rotateZ(-3deg)}
+  30%,70%{transform:translateX(4px) rotateZ(4deg)}
+  50%{transform:translateX(-5px) rotateZ(-5deg)}
 }
-.agent[data-state="blocked"] .ring{border-color:#f8717199;box-shadow:0 0 16px #f8717155}
-.agent[data-state="blocked"] .ball{filter:grayscale(.45) brightness(.85)}
+.agent[data-state="blocked"] .head{transform:translateZ(9px) translateY(3px) rotateZ(-7deg)}
+.agent[data-state="blocked"] .arm.l{rotate:-16deg}
+.agent[data-state="blocked"] .arm.r{rotate:16deg}
+.agent[data-state="blocked"] .antenna i{background:#fca5a5;box-shadow:0 0 10px 3px #f8717199}
+.agent[data-state="blocked"] .guy{filter:grayscale(.5) brightness(.82)}
+.agent[data-state="blocked"] .eye{background:#ffc9c9;box-shadow:0 0 6px 1px #f8717199;
+  animation:none;transform:scaleY(.35)}
 
 /* name + detail */
 .agent .name{font-size:.78rem;font-weight:600;letter-spacing:-.01em}
@@ -330,20 +412,27 @@ pre{margin:0;padding:12px 14px;border-radius:10px;background:#070b16;border:1px 
 .x:hover{color:var(--ink)}
 
 
-/* ── state: waiting — blocked on a human decision ── */
-.agent[data-state="waiting"] .orb{animation:float 6s ease-in-out infinite}
-.agent[data-state="waiting"] .ring{
-  border-color:#fbbf24cc;border-style:solid;
-  animation:waitPulse 1.6s ease-in-out infinite;
-  box-shadow:0 0 20px #fbbf2455;
-}
-@keyframes waitPulse{0%,100%{opacity:.4;inset:-9px}50%{opacity:1;inset:-14px}}
-.agent[data-state="waiting"] .ball{filter:saturate(.6)}
+/* ── state: waiting — one hand raised, checking the clock, nothing to do
+   until a human answers ── */
+.agent[data-state="waiting"] .guy{animation:tap 1.5s ease-in-out infinite}
+@keyframes tap{0%,100%{transform:translateY(0) rotateY(-8deg)}50%{transform:translateY(-2px) rotateY(-8deg)}}
+.agent[data-state="waiting"] .arm.r{rotate:-150deg}
+.agent[data-state="waiting"] .guy{filter:saturate(.62)}
+.agent[data-state="waiting"] .antenna i{
+  background:#fde68a;box-shadow:0 0 12px 3px #fbbf2499;animation:waitPulse 1.6s ease-in-out infinite}
+@keyframes waitPulse{0%,100%{opacity:.35}50%{opacity:1}}
 .agent[data-state="waiting"] .stage::after{
-  content:"\23F3";position:absolute;top:-4px;right:-2px;font-size:15px;
+  content:"\23F3";position:absolute;top:2px;right:4px;font-size:15px;
   animation:tick 2s steps(2) infinite;
 }
 @keyframes tick{0%,49%{transform:rotate(0)}50%,100%{transform:rotate(180deg)}}
+
+/* A viewer who asked for less motion gets the postures and none of the loops. */
+@media (prefers-reduced-motion:reduce){
+  .guy,.shadow,.eye,.antenna i,.bubbles i,
+  .agent[data-state="working"] .arm,
+  .agent[data-state="working"] .stage::after{animation:none !important}
+}
 
 /* ── approval queue ── */
 #approvals{margin:0 0 18px;display:grid;gap:12px}
@@ -758,11 +847,24 @@ function drawAgent(a) {
   node.style.setProperty("--hue", a.hue || "220");
 
   const stage = el("div", "stage");
-  const orb = el("div", "orb");
-  orb.append(el("div", "ring"));
-  const ball = el("div", "ball", a.emoji || "🤖");
-  orb.append(ball);
-  stage.append(orb, el("div", "shadow"));
+  const guy = el("div", "guy");
+
+  const antenna = el("div", "antenna");
+  antenna.append(el("i"));
+
+  const head = el("div", "head");
+  const visor = el("div", "visor");
+  visor.append(el("i", "eye l"), el("i", "eye r"));
+  head.append(visor);
+
+  const torso = el("div", "torso");
+  torso.append(el("div", "badge", a.emoji || "🤖"));
+
+  const legs = el("div", "legs");
+  legs.append(el("i"), el("i"));
+
+  guy.append(antenna, head, torso, el("div", "arm l"), el("div", "arm r"), legs);
+  stage.append(guy, el("div", "shadow"));
 
   const bubbles = el("div", "bubbles");
   bubbles.append(el("i"), el("i"), el("i"));
