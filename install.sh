@@ -71,25 +71,48 @@ command -v claude >/dev/null 2>&1 \
 # --- 3. The toolbox image --------------------------------------------------
 step "Building the toolbox image"
 
+LOG_DIR="${TMPDIR:-/tmp}/swarmstrike-setup.$$"
+mkdir -p "$LOG_DIR"
+
+# Show what actually failed. An earlier version printed a guess at the cause
+# and threw the output away, which sent someone looking at their network when
+# the build had broken on something else entirely.
+tail_log() {
+    printf '%s  ── last lines of %s ──%s\n' "$DIM" "$1" "$OFF"
+    tail -n 18 "$1" | sed 's/^/    /'
+    printf '%s  ── full log: %s ──%s\n' "$DIM" "$1" "$OFF"
+}
+
 if docker image inspect "$TOOLBOX_IMAGE" >/dev/null 2>&1; then
     ok "$TOOLBOX_IMAGE already built"
 else
     printf '%s  building %s — this pulls a lot of tooling and takes a while%s\n' \
         "$DIM" "$TOOLBOX_IMAGE" "$OFF"
-    if docker build -t "$TOOLBOX_IMAGE" -f docker/Dockerfile.toolbox . >/dev/null 2>&1; then
+    if docker build -t "$TOOLBOX_IMAGE" -f docker/Dockerfile.toolbox . \
+            > "$LOG_DIR/toolbox.log" 2>&1; then
         ok "$TOOLBOX_IMAGE built"
     else
-        warn "the full toolbox failed to build. That is usually no egress to a
-    package mirror. Falling back to the minimal image: curl, nuclei, httpx and
-    ffuf, which covers web and API work and nothing else."
-        docker build -t swarmstrike/toolbox:minimal \
-            --build-arg CA_BUNDLE=none.pem \
-            -f docker/Dockerfile.toolbox-minimal docker/ >/dev/null \
-            || die "the minimal toolbox failed to build too. Run the command
-  without the output suppressed to see why:
-      docker build -t swarmstrike/toolbox:minimal -f docker/Dockerfile.toolbox-minimal docker/"
-        TOOLBOX_IMAGE=swarmstrike/toolbox:minimal
-        ok "swarmstrike/toolbox:minimal built"
+        warn "the full toolbox did not build. Falling back to the minimal image:
+    curl, nuclei, httpx and ffuf, which covers web and API work and nothing
+    else. The reason the full one failed is below — it is worth reading, since
+    the minimal image is a smaller toolset, not a fix."
+        tail_log "$LOG_DIR/toolbox.log"
+        printf '\n%s  building swarmstrike/toolbox:minimal%s\n' "$DIM" "$OFF"
+        if docker build -t swarmstrike/toolbox:minimal \
+                -f docker/Dockerfile.toolbox-minimal docker/ \
+                > "$LOG_DIR/toolbox-minimal.log" 2>&1; then
+            TOOLBOX_IMAGE=swarmstrike/toolbox:minimal
+            ok "swarmstrike/toolbox:minimal built"
+        else
+            tail_log "$LOG_DIR/toolbox-minimal.log"
+            die "neither toolbox image would build. If the failure above is a TLS
+  error (curl 60, or a message about trust anchors) you are behind an
+  intercepting proxy: export its certificate and pass it in —
+      docker build -t swarmstrike/toolbox:minimal \\
+          --build-arg CA_BUNDLE=your-ca-bundle.crt \\
+          -f docker/Dockerfile.toolbox-minimal docker/
+  copying that bundle into docker/ first, since it is the build context."
+        fi
     fi
 fi
 

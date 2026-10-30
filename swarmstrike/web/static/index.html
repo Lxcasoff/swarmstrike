@@ -10,30 +10,142 @@
 -->
 <style>
 :root{
-  --bg:#070a12; --bg-2:#0c1020; --panel:#111729cc; --panel-solid:#111729;
-  --line:#1e2740; --line-soft:#18203450;
-  --ink:#e8edfb; --ink-dim:#93a0c0; --ink-faint:#5e6c8c;
-  --accent:#5b8cff; --good:#34d399; --warn:#fbbf24; --bad:#f87171; --crit:#fb3b53;
-  --radius:16px;
+  /* Palette, surfaces and shadows follow the CyberStrike AI design system
+     (Apache 2.0 — see NOTICE). Light is the base; dark overrides below. */
+  --accent-color:#0066ff; --accent-hover:#0052cc;
+  --brand-ai-start:#0066ff; --brand-ai-end:#7c3aed;
+  --brand-gradient:linear-gradient(135deg,var(--brand-ai-start) 0%,var(--brand-ai-end) 100%);
+  --bg-primary:#ffffff; --bg-secondary:#f8f9fa; --bg-tertiary:#f1f3f5;
+  --text-primary:#1a1a1a; --text-secondary:#6c757d; --text-muted:#adb5bd;
+  --border-color:#e9ecef;
+  --success-color:#28a745; --warning-color:#ffc107; --error-color:#dc3545;
+  --shadow-sm:0 1px 3px rgba(0,0,0,.05);
+  --shadow-md:0 4px 6px rgba(0,0,0,.1);
+  --shadow-lg:0 10px 25px rgba(0,0,0,.15);
+
+  /* Our own names, mapped onto theirs, so every rule written against the old
+     dark-only palette becomes theme-aware without being rewritten. */
+  --bg:var(--bg-secondary); --bg-2:var(--bg-tertiary);
+  --panel:var(--bg-primary); --panel-solid:var(--bg-primary);
+  --line:var(--border-color); --line-soft:#e9ecef80;
+  --ink:var(--text-primary); --ink-dim:var(--text-secondary); --ink-faint:var(--text-muted);
+  --accent:var(--accent-color);
+  --good:var(--success-color); --warn:#b26a00; --bad:var(--error-color); --crit:#b01c2e;
+  --sev-crit-bg:#dc354518; --sev-crit-fg:#a01828;
+  --sev-high-bg:#fd7e1418; --sev-high-fg:#9a4a06;
+  --sev-med-bg:#ffc10722;  --sev-med-fg:#8a6100;
+  --sev-low-bg:#0066ff14;  --sev-low-fg:#0b4fb8;
+  --feed-bad:#a01828; --feed-warn:#8a6100; --feed-good:#176b33;
+  --scroll-thumb:#ced4da;
+  --grid-line:#1a1a1a08;
+  --glow:transparent;
+
+  --radius:12px;
   --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace;
-  --sans:system-ui,-apple-system,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  color-scheme:light;
+}
+
+html[data-theme="dark"]{
+  color-scheme:dark;
+  --accent-color:#60a5fa; --accent-hover:#93c5fd;
+  --brand-ai-start:#60a5fa; --brand-ai-end:#a78bfa;
+  --bg-primary:#111827; --bg-secondary:#0b1120; --bg-tertiary:#1f2937;
+  --text-primary:#e5e7eb; --text-secondary:#a7b0c0; --text-muted:#6b7280;
+  --border-color:#263244;
+  --success-color:#34d399; --warning-color:#fbbf24; --error-color:#f87171;
+  --shadow-sm:0 1px 3px rgba(0,0,0,.35);
+  --shadow-md:0 8px 24px rgba(0,0,0,.38);
+  --shadow-lg:0 18px 48px rgba(0,0,0,.45);
+
+  --line-soft:#26324480;
+  --warn:var(--warning-color); --crit:#fb3b53;
+  --sev-crit-bg:#fb3b5320; --sev-crit-fg:#ff8fa0;
+  --sev-high-bg:#f8717118; --sev-high-fg:#ffb0b0;
+  --sev-med-bg:#fbbf2418;  --sev-med-fg:#fcd77f;
+  --sev-low-bg:#60a5fa18;  --sev-low-fg:#a8c2ff;
+  --feed-bad:#ffc2c2; --feed-warn:#fde68a; --feed-good:#a7f3d0;
+  --scroll-thumb:#334155;
+  --grid-line:#ffffff05;
+  --glow:rgba(37,99,235,.12);
 }
 *{box-sizing:border-box}
 html,body{height:100%}
 body{
-  margin:0; font-family:var(--sans); color:var(--ink);
-  background:
-    radial-gradient(1200px 700px at 12% -10%, #1b2a5518, transparent 60%),
-    radial-gradient(900px 600px at 95% 0%, #4b207818, transparent 55%),
-    linear-gradient(#070a12,#05070d);
-  background-attachment:fixed;
+  margin:0; font-family:var(--sans); color:var(--ink); line-height:1.6;
+  background:radial-gradient(circle at top left,var(--glow),transparent 28rem),var(--bg-secondary);
+  height:100vh; overflow:hidden;
 }
 body::before{
   content:""; position:fixed; inset:0; pointer-events:none; z-index:0;
-  background-image:linear-gradient(#ffffff05 1px,transparent 1px),linear-gradient(90deg,#ffffff05 1px,transparent 1px);
+  background-image:linear-gradient(var(--grid-line) 1px,transparent 1px),
+                   linear-gradient(90deg,var(--grid-line) 1px,transparent 1px);
   background-size:52px 52px; mask-image:radial-gradient(ellipse at 50% 0%,#000 25%,transparent 78%);
 }
-#app{position:relative;z-index:1;max-width:1560px;margin:0 auto;padding:22px 24px 64px}
+
+/* ─── shell: a fixed sidebar beside a scrolling page ───────────────── */
+#app{position:relative;z-index:1;height:100vh;display:grid;
+  grid-template-columns:232px minmax(0,1fr);transition:grid-template-columns .2s ease}
+#app.rail{grid-template-columns:62px minmax(0,1fr)}
+
+.main-sidebar{
+  display:flex;flex-direction:column;min-height:0;
+  background:var(--bg-primary);border-right:1px solid var(--border-color);
+}
+.sb-brand{display:flex;align-items:center;gap:11px;padding:16px 14px;
+  border-bottom:1px solid var(--border-color);min-height:62px}
+.sb-brand .mark{
+  width:34px;height:34px;flex:none;border-radius:9px;display:grid;place-items:center;font-size:17px;
+  background:var(--brand-gradient);box-shadow:var(--shadow-sm);
+}
+.sb-brand h1{margin:0;font-size:1.02rem;letter-spacing:-.02em;font-weight:650;white-space:nowrap}
+.sb-brand .collapse{
+  margin-left:auto;border:none;background:none;color:var(--text-muted);
+  font-size:1.05rem;line-height:1;padding:5px 6px;border-radius:6px;
+}
+.sb-brand .collapse:hover{background:var(--bg-tertiary);color:var(--text-primary)}
+#app.rail .sb-brand h1,#app.rail .sb-brand .collapse{display:none}
+#app.rail .sb-brand{justify-content:center;padding:16px 8px}
+
+.sb-nav{flex:1;overflow-y:auto;padding:10px 0;min-height:0}
+.nav-item-content{
+  display:flex;align-items:center;gap:10px;width:100%;
+  padding:10px 16px 10px 13px;cursor:pointer;transition:all .2s ease;
+  color:var(--text-primary);font-size:.9375rem;font-family:inherit;
+  border:none;border-left:3px solid transparent;background:none;text-align:left;
+}
+.nav-item-content:hover{background:var(--bg-tertiary)}
+.nav-item-content.on{
+  border-left-color:var(--accent-color);background:var(--bg-tertiary);
+  color:var(--accent-color);font-weight:600;
+}
+.nav-item-content .ico{width:19px;flex:none;text-align:center;font-size:.95rem}
+.nav-item-content .lbl{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nav-item-content .n{
+  font-size:.7rem;font-variant-numeric:tabular-nums;padding:1px 7px;border-radius:999px;
+  background:var(--bg-secondary);border:1px solid var(--border-color);color:var(--text-secondary);
+}
+.nav-item-content.on .n{border-color:var(--accent-color);color:var(--accent-color)}
+#app.rail .nav-item-content{padding:11px 0;justify-content:center;gap:0}
+#app.rail .nav-item-content .lbl,#app.rail .nav-item-content .n{display:none}
+
+.sb-foot{border-top:1px solid var(--border-color);padding:10px 12px;display:flex;gap:8px;align-items:center}
+.sb-foot .ver{font-size:.68rem;color:var(--text-muted);font-family:var(--mono)}
+#app.rail .sb-foot .ver{display:none}
+#app.rail .sb-foot{justify-content:center;padding:10px 6px}
+
+.main{display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden}
+.page-header{
+  display:flex;align-items:center;gap:18px;flex-wrap:wrap;
+  padding:12px 20px;min-height:62px;
+  background:var(--bg-primary);border-bottom:1px solid var(--border-color);
+}
+.page-header h2{margin:0;font-size:1.05rem;font-weight:650;letter-spacing:-.01em}
+.page-header .sub{margin:1px 0 0;font-size:.7rem;color:var(--text-muted);
+  letter-spacing:.12em;text-transform:uppercase}
+.page-content{flex:1;overflow-y:auto;padding:18px 20px 48px;min-height:0}
+.page-content::-webkit-scrollbar{width:9px}
+.page-content::-webkit-scrollbar-thumb{background:var(--scroll-thumb);border-radius:99px}
 
 /* ─── header ───────────────────────────────────────────────────────── */
 header.top{display:flex;align-items:center;gap:20px;flex-wrap:wrap;margin-bottom:22px}

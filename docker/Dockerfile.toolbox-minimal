@@ -46,21 +46,33 @@ ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
     CURL_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
 RUN set -eux; \
     cd /tmp/ca; \
+    # A certificate is a file whose PEM header starts a line. Matching the
+    # phrase anywhere in the file is not the same test, and the placeholder
+    # that documented this check once contained the words it was looking for,
+    # which installed that prose as the trust store and broke every fetch.
+    is_pem() { [ -s "$1" ] && grep -q '^-----BEGIN CERTIFICATE-----' "$1"; }; \
     install_bundle() { \
         cp "$1" /etc/ssl/certs/ca-certificates.crt; \
         cp "$1" /etc/ssl/cert.pem; \
     }; \
-    if [ -s "${CA_BUNDLE}" ] && grep -q 'BEGIN CERTIFICATE' "${CA_BUNDLE}"; then \
+    if is_pem "${CA_BUNDLE}"; then \
         install_bundle "${CA_BUNDLE}"; \
         echo "replaced the system CA bundle"; \
-    elif [ -s "${EXTRA_CA}" ] && grep -q 'BEGIN CERTIFICATE' "${EXTRA_CA}"; then \
+    elif is_pem "${EXTRA_CA}"; then \
         for target in /etc/ssl/certs/ca-certificates.crt /etc/ssl/cert.pem; do \
             [ -f "$target" ] || continue; \
             printf '\n' >> "$target"; \
             cat "${EXTRA_CA}" >> "$target"; \
         done; \
         echo "appended one certificate to the system CA bundles"; \
-    fi
+    else \
+        echo "no certificate injected; keeping the image's own trust store"; \
+    fi; \
+    # Whatever happened above, the trust store has to still be one. A broken
+    # bundle fails later, inside curl, as an error about trust anchors that
+    # says nothing about where it came from.
+    grep -q '^-----BEGIN CERTIFICATE-----' /etc/ssl/certs/ca-certificates.crt \
+        || { echo "the CA bundle is not a certificate store; refusing to continue" >&2; exit 1; }
 
 RUN set -eux; \
     get() { curl -fsSL --retry 3 -o "$1" "$2"; }; \
