@@ -2,6 +2,10 @@
 # Never commit engagement scope keys, client data or campaign output.
 .env
 *.key
+# A filled-in contract names a real client and their real targets, and carries
+# the authorization reference for the test. It belongs in the engagement's own
+# records, not in this repository.
+engagement.yaml
 engagement.local.yaml
 engagements/
 campaigns/

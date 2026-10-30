@@ -87,34 +87,64 @@ are still reviewed and reported.
 ## Quickstart
 
 ```bash
-pip install -e .
+./install.sh
+```
 
-# Build the toolbox image the agents' commands run inside.
-docker build -t swarmstrike/toolbox:latest -f docker/Dockerfile.toolbox .
+That checks your prerequisites, installs the package with the dashboard,
+builds the toolbox image the agents' commands run inside, generates a signing
+key into `.env`, and scaffolds a contract. Re-running it is safe: it keeps a
+key, a contract and an image that already exist.
 
-# A signing key, kept outside the repository.
-export SWARMSTRIKE_SCOPE_KEY=$(openssl rand -hex 32)
-export ANTHROPIC_API_KEY=sk-ant-...
+It stops short of signing the contract, and that is deliberate. The contract is
+the written authorization this tool answers to — who asked for the test,
+against which targets, within which window. A script cannot know any of that,
+and one that signed a contract anyway would be forging the authorization the
+rest of the design exists to enforce. The last three steps are yours:
 
-# Write a contract, fill it in, and sign it.
-swarmstrike engagement init engagement.yaml
-$EDITOR engagement.yaml
+```bash
+$EDITOR engagement.yaml                 # who authorized this, and against what
+source .env
 swarmstrike engagement sign engagement.yaml
 
-# Confirm the contract says what you think it says.
+# Confirm the contract says what you think it says, before every engagement.
 swarmstrike engagement check engagement.yaml app.client.example 10.0.0.5
 
-# Run it — in the terminal…
+# Then run it — in the terminal…
 swarmstrike run engagement.yaml --tui
 
 # …or in the browser.
-pip install -e '.[web]'
-swarmstrike serve          # http://127.0.0.1:8787
+swarmstrike serve                       # http://127.0.0.1:8787
 ```
 
-See the interface without touching anything: open
-`http://127.0.0.1:8787/?demo=1`, which replays a scripted campaign through the
-same renderers with no backend and no target.
+See the interface without touching anything: `swarmstrike serve`, then open
+`http://127.0.0.1:8787/?demo`, which replays a scripted campaign through the
+same renderers with no backend and no target. A hosted copy of that
+demonstration is linked from the repository description.
+
+<details>
+<summary>Doing it by hand instead</summary>
+
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+pip install -e '.[web]'
+npm install -g @anthropic-ai/claude-code      # the harness drives this CLI
+
+docker build -t swarmstrike/toolbox:latest -f docker/Dockerfile.toolbox .
+
+cp .env.example .env
+# Fill in ANTHROPIC_API_KEY, and SWARMSTRIKE_SCOPE_KEY=$(openssl rand -hex 32).
+
+swarmstrike engagement init engagement.yaml
+```
+
+Where there is no egress to a package mirror, the full toolbox cannot build.
+`docker/Dockerfile.toolbox-minimal` carries curl, nuclei, httpx and ffuf from
+published release archives, which covers web and API work and nothing else.
+`swarmstrike probe --image <image>` reports which recipes an image can actually
+run; the ones it cannot are withheld from the agents rather than left to fail
+mid-campaign.
+
+</details>
 
 ---
 
@@ -358,17 +388,39 @@ ceiling.
 
 ## Status
 
-Early, and honest about where the line is.
+Version 1.0: exercised end to end, and honest about where the line still is.
 
-**Tested.** The contract and its signing, scope enforcement, the audit chain,
-the budget ceiling and CVSS scoring — 48 tests, including every command shape
-that must never reach a target, and the report's escaping of
-target-controlled evidence.
+**Tested.** 276 tests, covering the contract and its signing, scope
+enforcement, the audit chain, the approval gate, the three execution tiers,
+the fact graph, the state-space loop, CVSS scoring, and the report's escaping
+of target-controlled evidence. Every command shape that must never reach a
+target has a test that proves it does not.
 
-**Implemented but not yet exercised against a live engagement.** The agent
-roster, the lead's delegation, the challenge round, and the toolbox image.
-These need a first real campaign to tune, and the prompts in particular will
-want iteration against findings a client actually cares about.
+**Exercised against live targets.** Two full campaigns against a lab of
+deliberately vulnerable applications (OWASP Juice Shop and DVWA on an isolated
+network — see `lab/`). 155 commands, nine confirmed findings including an
+unauthenticated SQL injection and a user-record disclosure, a hash chain
+verified across 186 entries, inside a $4 budget. That is also where eight
+defects came from that no unit test was going to find: a digest that offered
+the lead tools the image did not carry, agent self-claims that never closed and
+stalled the search two rounds early, a comma-separated target list that read as
+no target at all, credential material written to the evidence directory
+unflagged, a halt that made resuming impossible by construction, and a fact
+link to a non-existent key that silently dropped the only attack-path step.
+Each is fixed, each has a test.
+
+**Not yet exercised.**
+
+- *A real client engagement.* The lab is a lab. Prompts in particular will want
+  iteration against findings a client actually cares about.
+- *The attack-path section.* It has never produced a chain from real data. On
+  the lab engagement that is arguably correct — exploitation stopped at proof
+  and authentication testing was unauthorized, so the findings are independent
+  pre-auth disclosures with nothing to chain — but the section remains unproven.
+- *The red-team phases.* Persistence, exfiltration and evasion are implemented
+  and gated behind contract flags that the lab contract left off.
+- *Active Directory and cloud.* The specialists and their recipes exist; no
+  target has been available to run them against.
 
 ```bash
 pytest
