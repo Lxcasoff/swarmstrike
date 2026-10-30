@@ -11,6 +11,7 @@ reporter agent rewrite them in prose from the same confirmed record.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -39,6 +40,39 @@ _NUMBERS = {
 def _spell(value: int) -> str:
     """Small numbers read better spelled out in a sentence an executive scans."""
     return _NUMBERS.get(value, str(value))
+
+
+# Abbreviations whose full stop does not end a sentence. Splitting on ". " cut
+# the first remediation in the lab report at "on the User include (e.g.", which
+# is the line an executive reads first.
+_ABBREVIATIONS = (
+    "e.g.", "i.e.", "etc.", "cf.", "vs.", "approx.", "resp.", "incl.",
+    "no.", "vol.", "ch.", "fig.", "al.",
+)
+
+_SENTENCE_END = re.compile(r"(?<=[.!?])\s+(?=[A-Z(\[`'\"])")
+
+
+def _first_sentence(text: str) -> str:
+    """The first sentence of a remediation, for the priorities list.
+
+    Falls back to the whole text when no sentence boundary is found, because a
+    remediation that is one long sentence is better read in full than cut.
+    """
+    text = " ".join(text.split()).strip()
+    if not text:
+        return ""
+
+    for candidate in _SENTENCE_END.split(text):
+        candidate = candidate.strip()
+        if not candidate:
+            continue
+        lowered = candidate.casefold()
+        if any(lowered.endswith(abbr) for abbr in _ABBREVIATIONS):
+            continue  # not a sentence end — keep going and take more
+        return candidate if candidate.endswith((".", "!", "?")) else candidate + "."
+
+    return text if text.endswith((".", "!", "?")) else text + "."
 
 
 RISK_STATEMENTS = {
@@ -167,7 +201,7 @@ class ReportBuilder:
                 "severity": f.get("severity") or "unrated",
                 "cvss_score": f.get("cvss_score"),
                 "asset": f["asset"],
-                "one_line": (f.get("remediation") or f["summary"]).split(". ")[0].rstrip(".") + ".",
+                "one_line": _first_sentence(f.get("remediation") or f["summary"]),
             }
             for f in top
         ]

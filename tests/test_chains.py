@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from swarmstrike.report.chains import FALLBACK, STEP_KIND, describe_path, prepare, step_kind
+from swarmstrike.report.builder import _first_sentence
 
 
 def fact(key: str, category: str, summary: str, *, confidence: str = "confirmed",
@@ -196,3 +197,39 @@ def test_the_summary_mentions_a_proven_chain(rendered) -> None:
 def test_the_summary_says_nothing_about_chains_when_there_are_none(rendered) -> None:
     _, _, context = rendered(False)
     assert "stand alone" not in context["executive_summary"]
+
+
+# ---------------------------------------------------------------------------
+#  The one-line remediation in the priorities list
+# ---------------------------------------------------------------------------
+@pytest.mark.parametrize(
+    ("label", "text", "expected"),
+    [
+        (
+            # The lab report cut priority 1 here, which is the line an
+            # executive reads first.
+            "an abbreviation mid-sentence",
+            "In the memories route handler, query with an explicit attributes "
+            "whitelist on the User include (e.g. id, email). Then redeploy.",
+            "In the memories route handler, query with an explicit attributes "
+            "whitelist on the User include (e.g. id, email).",
+        ),
+        (
+            "several sentences",
+            "Set Options -Indexes in the vhost. Deny access to *.dist files.",
+            "Set Options -Indexes in the vhost.",
+        ),
+        (
+            "one long sentence is kept whole rather than cut",
+            "Restrict /metrics to the monitoring network (reverse-proxy allowlist "
+            "or basic auth/mTLS) and do not route it through the public listener.",
+            "Restrict /metrics to the monitoring network (reverse-proxy allowlist "
+            "or basic auth/mTLS) and do not route it through the public listener.",
+        ),
+        ("no trailing period", "Rotate the exposed key", "Rotate the exposed key."),
+        ("an abbreviation first", "Use e.g. a bound query. That is all.", "Use e.g. a bound query."),
+        ("nothing at all", "   ", ""),
+    ],
+)
+def test_the_priority_line_breaks_at_a_real_sentence_end(label, text, expected) -> None:
+    assert _first_sentence(text) == expected, label
