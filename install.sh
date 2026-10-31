@@ -28,6 +28,7 @@ die()  { printf '\n%s  ✗%s %s\n\n' "$RED" "$OFF" "$1" >&2; exit 1; }
 cd "$(dirname "$0")"
 
 TOOLBOX_IMAGE="${SWARMSTRIKE_TOOLBOX_IMAGE:-swarmstrike/toolbox:latest}"
+TOOLBOX_OK=yes
 CONTRACT="${SWARMSTRIKE_CONTRACT:-engagement.yaml}"
 
 # --- 1. Prerequisites ------------------------------------------------------
@@ -115,19 +116,24 @@ else
             TOOLBOX_IMAGE=swarmstrike/toolbox:minimal
             ok "swarmstrike/toolbox:minimal built"
         elif was_cancelled "$LOG_DIR/toolbox-minimal.log"; then
-            die "the minimal toolbox build was interrupted before it finished.
-  Nothing is wrong with it — the downloads just take a few minutes. Run the
-  script again and let it run:
-      ./install.sh"
+            TOOLBOX_OK=no
+            warn "the minimal toolbox build was interrupted before it finished.
+    Nothing is wrong with it — the downloads take a few minutes. Run this
+    script again and let it finish."
         else
+            TOOLBOX_OK=no
             tail_log "$LOG_DIR/toolbox-minimal.log"
-            die "neither toolbox image would build. If the failure above is a TLS
-  error (curl 60, or a message about trust anchors) you are behind an
-  intercepting proxy: export its certificate and pass it in —
-      docker build -t swarmstrike/toolbox:minimal \\
-          --build-arg CA_BUNDLE=your-ca-bundle.crt \\
-          -f docker/Dockerfile.toolbox-minimal docker/
-  copying that bundle into docker/ first, since it is the build context."
+            warn "neither toolbox image would build. Setup continues — an image
+    is needed to run a campaign, not to set one up — but you will need one
+    before the first run.
+
+    If the failure above is a TLS error (curl 60, or a message about trust
+    anchors) you are behind an intercepting proxy. Export its certificate,
+    copy it into docker/ since that is the build context, and pass it in:
+        cp /path/to/ca-bundle.crt docker/
+        docker build -t swarmstrike/toolbox:minimal \\
+            --build-arg CA_BUNDLE=ca-bundle.crt \\
+            -f docker/Dockerfile.toolbox-minimal docker/"
         fi
     fi
 fi
@@ -199,6 +205,13 @@ set -e
 
 # --- Done ------------------------------------------------------------------
 printf '\n%s%s  Setup complete.%s\n' "$BOLD" "$GREEN" "$OFF"
+
+if [ "$TOOLBOX_OK" = no ]; then
+    printf '\n%s  ⚠%s %s\n' "$YELLOW" "$OFF" "No toolbox image was built. Every command an agent
+    proposes runs inside one, so a campaign cannot start without it. Build one
+    with the commands above, then check what it carries:
+        swarmstrike probe --image <image>"
+fi
 
 if [ "$SIGNED" = yes ]; then
     cat <<EOF
