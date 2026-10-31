@@ -21,6 +21,28 @@ BOLD=$'\033[1m'; DIM=$'\033[2m'; GREEN=$'\033[32m'; YELLOW=$'\033[33m'
 RED=$'\033[31m'; CYAN=$'\033[36m'; OFF=$'\033[0m'
 
 step() { printf '\n%s▸ %s%s\n' "$BOLD" "$1" "$OFF"; }
+
+# A build that prints nothing for four minutes looks like a hang, and someone
+# interrupting it is a reasonable response to what they are shown.
+spinner() {
+    local pid=$1 message=$2 frames='|/-\' i=0 start elapsed
+    start=$(date +%s)
+    if [ ! -t 1 ]; then wait "$pid"; return $?; fi
+    while kill -0 "$pid" 2>/dev/null; do
+        elapsed=$(( $(date +%s) - start ))
+        printf '\r%s  %s %s  %dm%02ds%s\033[K' "$DIM" \
+            "${frames:i++%4:1}" "$message" $((elapsed / 60)) $((elapsed % 60)) "$OFF"
+        sleep 0.4
+    done
+    printf '\r\033[K'
+    wait "$pid"
+}
+
+run_build() {   # run_build <log> <message> <docker build args...>
+    local log=$1 message=$2; shift 2
+    docker build "$@" > "$log" 2>&1 &
+    spinner $! "$message"
+}
 ok()   { printf '%s  ✓%s %s\n' "$GREEN" "$OFF" "$1"; }
 warn() { printf '%s  ⚠%s %s\n' "$YELLOW" "$OFF" "$1"; }
 die()  { printf '\n%s  ✗%s %s\n\n' "$RED" "$OFF" "$1" >&2; exit 1; }
@@ -93,13 +115,26 @@ was_cancelled() {
     grep -qE 'context canceled|CANCELED' "$1"
 }
 
-if docker image inspect "$TOOLBOX_IMAGE" >/dev/null 2>&1; then
-    ok "$TOOLBOX_IMAGE already built"
+image_is_current() {   # image_is_current <image> <dockerfile>
+    local built
+    docker image inspect "$1" >/dev/null 2>&1 || return 1
+    built=$(docker image inspect -f '{{.Created}}' "$1" 2>/dev/null) || return 1
+    # An image older than its Dockerfile is stale. Keeping it means an edit
+    # silently never takes effect, which is worse than a slow rebuild.
+    [ -f "$2" ] || return 0
+    [ "$(date -d "$built" +%s 2>/dev/null || echo 0)" -ge \
+      "$(stat -c %Y "$2" 2>/dev/null || echo 0)" ]
+}
+
+if image_is_current "$TOOLBOX_IMAGE" docker/Dockerfile.toolbox; then
+    ok "$TOOLBOX_IMAGE already built and newer than its Dockerfile"
+elif image_is_current swarmstrike/toolbox:minimal docker/Dockerfile.toolbox-minimal; then
+    TOOLBOX_IMAGE=swarmstrike/toolbox:minimal
+    ok "swarmstrike/toolbox:minimal already built and newer than its Dockerfile"
 else
-    printf '%s  building %s — this pulls a lot of tooling and takes a while%s\n' \
-        "$DIM" "$TOOLBOX_IMAGE" "$OFF"
-    if docker build -t "$TOOLBOX_IMAGE" -f docker/Dockerfile.toolbox . \
-            > "$LOG_DIR/toolbox.log" 2>&1; then
+    if run_build "$LOG_DIR/toolbox.log" \
+            "building $TOOLBOX_IMAGE — it installs a lot of tooling" \
+            -t "$TOOLBOX_IMAGE" -f docker/Dockerfile.toolbox .; then
         ok "$TOOLBOX_IMAGE built"
     else
         warn "the full toolbox did not build. Falling back to the minimal image:
@@ -108,11 +143,10 @@ else
     the minimal image is a smaller toolset, not a fix."
         tail_log "$LOG_DIR/toolbox.log"
         printf '\n%s  building swarmstrike/toolbox:minimal%s\n' "$DIM" "$OFF"
-        printf '%s  it fetches three release archives from GitHub; give it a minute%s\n' \
-            "$DIM" "$OFF"
-        if docker build -t swarmstrike/toolbox:minimal \
-                -f docker/Dockerfile.toolbox-minimal docker/ \
-                > "$LOG_DIR/toolbox-minimal.log" 2>&1; then
+        if run_build "$LOG_DIR/toolbox-minimal.log" \
+                "building swarmstrike/toolbox:minimal — fetching three archives from GitHub" \
+                -t swarmstrike/toolbox:minimal \
+                -f docker/Dockerfile.toolbox-minimal docker/; then
             TOOLBOX_IMAGE=swarmstrike/toolbox:minimal
             ok "swarmstrike/toolbox:minimal built"
         elif was_cancelled "$LOG_DIR/toolbox-minimal.log"; then
