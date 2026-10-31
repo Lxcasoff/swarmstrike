@@ -115,26 +115,34 @@ was_cancelled() {
     grep -qE 'context canceled|CANCELED' "$1"
 }
 
+# Which Dockerfile an image was built from, recorded in the image itself.
+# Comparing the image's creation time against the Dockerfile's mtime does not
+# work: a cache hit hands back an image whose Created predates the edit, so
+# every run looked stale and rebuilt. The content hash is exact.
+dockerfile_sha() { sha256sum "$1" 2>/dev/null | cut -c1-16; }
+
 image_is_current() {   # image_is_current <image> <dockerfile>
-    local built
+    local stamped want
     docker image inspect "$1" >/dev/null 2>&1 || return 1
-    built=$(docker image inspect -f '{{.Created}}' "$1" 2>/dev/null) || return 1
-    # An image older than its Dockerfile is stale. Keeping it means an edit
-    # silently never takes effect, which is worse than a slow rebuild.
     [ -f "$2" ] || return 0
-    [ "$(date -d "$built" +%s 2>/dev/null || echo 0)" -ge \
-      "$(stat -c %Y "$2" 2>/dev/null || echo 0)" ]
+    want=$(dockerfile_sha "$2")
+    stamped=$(docker image inspect \
+        -f '{{index .Config.Labels "swarmstrike.dockerfile"}}' "$1" 2>/dev/null)
+    # An image built before this label existed carries none. Rebuilding every
+    # such image once is the price of knowing afterwards.
+    [ -n "$stamped" ] && [ "$stamped" = "$want" ]
 }
 
 if image_is_current "$TOOLBOX_IMAGE" docker/Dockerfile.toolbox; then
-    ok "$TOOLBOX_IMAGE already built and newer than its Dockerfile"
+    ok "$TOOLBOX_IMAGE already built from this Dockerfile"
 elif image_is_current swarmstrike/toolbox:minimal docker/Dockerfile.toolbox-minimal; then
     TOOLBOX_IMAGE=swarmstrike/toolbox:minimal
-    ok "swarmstrike/toolbox:minimal already built and newer than its Dockerfile"
+    ok "swarmstrike/toolbox:minimal already built from this Dockerfile"
 else
     if run_build "$LOG_DIR/toolbox.log" \
             "building $TOOLBOX_IMAGE — it installs a lot of tooling" \
-            -t "$TOOLBOX_IMAGE" -f docker/Dockerfile.toolbox .; then
+            -t "$TOOLBOX_IMAGE" -f docker/Dockerfile.toolbox \
+            --label "swarmstrike.dockerfile=$(dockerfile_sha docker/Dockerfile.toolbox)" .; then
         ok "$TOOLBOX_IMAGE built"
     else
         warn "the full toolbox did not build. Falling back to the minimal image:
@@ -146,7 +154,9 @@ else
         if run_build "$LOG_DIR/toolbox-minimal.log" \
                 "building swarmstrike/toolbox:minimal — fetching three archives from GitHub" \
                 -t swarmstrike/toolbox:minimal \
-                -f docker/Dockerfile.toolbox-minimal docker/; then
+                -f docker/Dockerfile.toolbox-minimal \
+                --label "swarmstrike.dockerfile=$(dockerfile_sha docker/Dockerfile.toolbox-minimal)" \
+                docker/; then
             TOOLBOX_IMAGE=swarmstrike/toolbox:minimal
             ok "swarmstrike/toolbox:minimal built"
         elif was_cancelled "$LOG_DIR/toolbox-minimal.log"; then
