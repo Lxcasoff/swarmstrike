@@ -32,6 +32,15 @@ What was derived
   offers — campaign overview, findings, agents, tool inventory — follows
   CyberStrikeAI's web console.
 
+* **The visual design system of the web console.** The palette, the brand
+  gradient, the surface and border tokens, the shadow scale, the light and
+  dark theme pair, the button and control shapes, and the sidebar navigation
+  pattern — a fixed rail whose active item is marked by a coloured left
+  border, beside a page header and a scrolling page body — follow
+  CyberStrikeAI's `web/static/css/style.css` and `web/templates/index.html`.
+  The token names in `swarmstrike/web/static/index.html` are theirs, so the
+  correspondence is legible rather than laundered.
+
 What was changed
 ----------------
 
@@ -72,3 +81,15 @@ derived material:
 
 * **Destructive actions are refused unconditionally.** No contract setting
   enables them.
+
+* **The console is one self-contained page, with no stylesheet copied.**
+  CyberStrikeAI's console is a multi-page Go-templated application with some
+  56,000 lines of CSS across six files, vendored JavaScript libraries and
+  translations in three languages. swarmstrike's console is a single HTML
+  document of roughly 2,500 lines that loads nothing from a CDN. The design
+  system was reimplemented against that structure; no CSS, template or
+  JavaScript file was copied.
+
+* **The agent avatars are our own.** CyberStrikeAI's console does not have
+  them. The figures in the war room, and the mapping from campaign state to
+  posture, were written here.

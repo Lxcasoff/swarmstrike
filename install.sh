@@ -79,8 +79,17 @@ mkdir -p "$LOG_DIR"
 # the build had broken on something else entirely.
 tail_log() {
     printf '%s  ── last lines of %s ──%s\n' "$DIM" "$1" "$OFF"
-    tail -n 18 "$1" | sed 's/^/    /'
+    # Enough lines to carry the tool's own error message, not just docker's
+    # summary of which step failed. apt in particular says why several lines
+    # above the line docker quotes back.
+    tail -n 40 "$1" | sed 's/^/    /'
     printf '%s  ── full log: %s ──%s\n' "$DIM" "$1" "$OFF"
+}
+
+# A build the operator interrupted is not a build that failed, and saying so
+# sends them debugging something that was working.
+was_cancelled() {
+    grep -qE 'context canceled|CANCELED' "$1"
 }
 
 if docker image inspect "$TOOLBOX_IMAGE" >/dev/null 2>&1; then
@@ -98,11 +107,18 @@ else
     the minimal image is a smaller toolset, not a fix."
         tail_log "$LOG_DIR/toolbox.log"
         printf '\n%s  building swarmstrike/toolbox:minimal%s\n' "$DIM" "$OFF"
+        printf '%s  it fetches three release archives from GitHub; give it a minute%s\n' \
+            "$DIM" "$OFF"
         if docker build -t swarmstrike/toolbox:minimal \
                 -f docker/Dockerfile.toolbox-minimal docker/ \
                 > "$LOG_DIR/toolbox-minimal.log" 2>&1; then
             TOOLBOX_IMAGE=swarmstrike/toolbox:minimal
             ok "swarmstrike/toolbox:minimal built"
+        elif was_cancelled "$LOG_DIR/toolbox-minimal.log"; then
+            die "the minimal toolbox build was interrupted before it finished.
+  Nothing is wrong with it — the downloads just take a few minutes. Run the
+  script again and let it run:
+      ./install.sh"
         else
             tail_log "$LOG_DIR/toolbox-minimal.log"
             die "neither toolbox image would build. If the failure above is a TLS
