@@ -306,9 +306,9 @@ footer p { max-width: 68ch; }
 
 <pre><code>git clone https://github.com/Lxcasoff/swarmstrike
 cd swarmstrike
-./install.sh</code></pre>
+./run.sh</code></pre>
 
-  <p>It checks your prerequisites, installs the package with the dashboard, builds the toolbox image the agents' commands run inside, generates a signing key into <code>.env</code> at mode 600, and scaffolds a contract. Running it again is safe: a key, a contract or an image that already exists is left alone.</p>
+  <p>One script does the lot: checks your prerequisites, installs the package with the dashboard, builds the toolbox image the agents' commands run inside, generates a signing key into <code>.env</code> at mode 600, asks for your Anthropic API key if it is not set, scaffolds a contract, and opens the console. Running it again is safe — a key, a contract or an image that already exists is left alone — so it is also the command to run after a <code>git pull</code>. <code>--tui</code> runs a campaign in the terminal instead, <code>--setup-only</code> stops after setup, and <code>--rebuild</code> forces a fresh toolbox image.</p>
 
   <p>You need Docker and Python 3.11+. Node 20+ as well, because the agent harness drives the Claude Code CLI, which is a Node program — or skip Node and use the server container, which carries its own. Where the full toolbox cannot build for lack of a package mirror, the script falls back to a minimal image with curl, nuclei, httpx and ffuf, and tells you it did.</p>
 
@@ -326,8 +326,8 @@ swarmstrike engagement sign engagement.yaml
 swarmstrike engagement check engagement.yaml app.client.example 8.8.8.8</code></pre>
 
   <h3>Then run it</h3>
-<pre><code>swarmstrike run engagement.yaml --tui   <span class="cmt"># live view in the terminal</span>
-swarmstrike serve                       <span class="cmt"># http://127.0.0.1:8787</span></code></pre>
+<pre><code>./run.sh                                <span class="cmt"># console on http://127.0.0.1:8787</span>
+./run.sh --tui                          <span class="cmt"># live view in the terminal</span></code></pre>
 
   <p>To see the interface before you have a contract at all, start the server and open <code>http://127.0.0.1:8787/?demo</code>. That replays a scripted campaign through the same renderers the live view uses, with no backend and no target contacted.</p>
 </section>

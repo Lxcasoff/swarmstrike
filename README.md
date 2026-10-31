@@ -87,13 +87,22 @@ are still reviewed and reported.
 ## Quickstart
 
 ```bash
-./install.sh
+./run.sh
 ```
 
-That checks your prerequisites, installs the package with the dashboard,
-builds the toolbox image the agents' commands run inside, generates a signing
-key into `.env`, and scaffolds a contract. Re-running it is safe: it keeps a
-key, a contract and an image that already exist.
+One script does the lot: checks your prerequisites, installs the package with
+the dashboard, builds the toolbox image the agents' commands run inside,
+generates a signing key into `.env`, asks for your Anthropic API key if it is
+not set, scaffolds a contract, and opens the console. Re-running it is safe —
+a key, a contract and an image that already exist are left alone — so it is
+also the command to run after a `git pull`.
+
+```bash
+./run.sh --tui            # run a campaign in the terminal instead
+./run.sh --setup-only     # set up and stop
+./run.sh --key sk-ant-... # record an API key without being asked
+./run.sh --rebuild        # rebuild the toolbox image even if it is current
+```
 
 It stops short of signing the contract, and that is deliberate. The contract is
 the written authorization this tool answers to — who asked for the test,
@@ -103,17 +112,14 @@ rest of the design exists to enforce. The last three steps are yours:
 
 ```bash
 $EDITOR engagement.yaml                 # who authorized this, and against what
-source .env
 swarmstrike engagement sign engagement.yaml
 
 # Confirm the contract says what you think it says, before every engagement.
 swarmstrike engagement check engagement.yaml app.client.example 10.0.0.5
 
-# Then run it — in the terminal…
-swarmstrike run engagement.yaml --tui
-
-# …or in the browser.
-swarmstrike serve                       # http://127.0.0.1:8787
+# Then run it.
+./run.sh                                # console, http://127.0.0.1:8787
+./run.sh --tui                          # or in the terminal
 ```
 
 See the interface without touching anything: `swarmstrike serve`, then open
