@@ -41,13 +41,16 @@ done
 [ -f .env ] || die "no .env — setup should have created one. Run ./install.sh."
 set -a; . ./.env; set +a
 
-[ -n "${ANTHROPIC_API_KEY:-}" ] && [ "${ANTHROPIC_API_KEY}" != "sk-ant-..." ] \
-    || die "ANTHROPIC_API_KEY is not set in .env. The agents cannot run without it."
+have_api_key() {
+    [ -n "${ANTHROPIC_API_KEY:-}" ] && [ "${ANTHROPIC_API_KEY}" != "sk-ant-..." ]
+}
 
 # A campaign needs a signed contract. The console does not — you can open it,
 # look at the demonstration and verify a contract from the launch panel — so
 # only the terminal path insists.
 if [ "$MODE" = tui ]; then
+    have_api_key || die "ANTHROPIC_API_KEY is not set in .env. The agents cannot
+  run without it."
     [ -f "$CONTRACT" ] || die "no contract at $CONTRACT. Write one with
   'swarmstrike engagement init $CONTRACT', fill it in, and sign it."
     swarmstrike engagement verify "$CONTRACT" >/dev/null 2>&1 || die \
@@ -57,6 +60,11 @@ if [ "$MODE" = tui ]; then
     printf '\n%s▸ Starting a campaign against %s%s\n\n' "$BOLD" "$CONTRACT" "$OFF"
     exec swarmstrike run "$CONTRACT" --tui "${PASSTHROUGH[@]}"
 fi
+
+# Serving needs no key. The console opens, the demonstration runs with no
+# backend and no target, and a contract can be verified from the launch panel.
+# Only starting a campaign needs one, and the console says so when you try.
+have_api_key || printf '%s  ⚠  ANTHROPIC_API_KEY is still a placeholder in .env.\n     The console opens and the demonstration runs; starting a campaign\n     will not.%s\n' "$DIM" "$OFF"
 
 printf '\n%s▸ Console on %shttp://%s:%s%s\n' "$BOLD" "$CYAN" "$HOST" "$PORT" "$OFF"
 printf '%s  The demonstration, with no backend and no target, is at %s/?demo%s\n' \
