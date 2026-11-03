@@ -196,6 +196,10 @@ class ToolExecutor:
     # that knows which agent is doing what to whom, and when it stops.
     on_event: Callable[[str, dict[str, Any]], None] | None = None
 
+    # Optional, and off unless the contract turns it on: a model that shortens
+    # what the deterministic compressor could not.
+    summariser: Any = None
+
     # Where a command that cannot be statically checked goes to be decided.
     # Deny-by-default: an unattended campaign does not approve its own shell.
     approval: ApprovalGate = field(default_factory=AutoDenyGate)
@@ -344,6 +348,8 @@ class ToolExecutor:
         shrunk = compress(stdout, limit=AGENT_OUTPUT_LIMIT)
         truncated = shrunk.strategy != "none"
         visible = shrunk.render(str(output_path)) if truncated else stdout
+        visible = await self._maybe_summarise(
+            visible, shlex.join(safe_argv), output_path)
 
         self.audit.command(
             agent=agent,
@@ -702,6 +708,37 @@ class ToolExecutor:
         except OSError:
             return False
         return any(marker in cgroup for marker in ("docker", "containerd", "kubepods"))
+
+    async def _maybe_summarise(self, text: str, command: str, output_path: Path) -> str:
+        """Hand the compressed output to a model, where the contract allows it.
+
+        Deterministic compression runs first and always: it is exact, instant
+        and free, and it understands the formats our recipes produce. This is
+        for what it could not shorten. The agent is told which it is reading —
+        a finding must not rest on a model's paraphrase of evidence without
+        anyone knowing that is what it is.
+        """
+        if self.summariser is None or not self.summariser.available:
+            return text
+        if len(text) < self.summariser.config.min_chars:
+            return text
+
+        # urllib blocks, and this runs inside the event loop that is also
+        # driving every other tool in the round.
+        summary = await asyncio.to_thread(
+            self.summariser.summarise, text, context=command)
+        if summary is None:
+            return text
+
+        self._emit("output.summarised", tool=command.split(" ")[0],
+                   model=summary.model, from_chars=len(text),
+                   to_chars=len(summary.text))
+        return (
+            f"{summary.text}\n\n"
+            f"--- the {len(text):,} characters of output above were summarised "
+            f"by {summary.model}; this is its account, not the tool's output ---\n"
+            f"--- the exact output is on disk at {output_path} ---"
+        )
 
     def _mark_if_sensitive(self, agent: str, output_path: Path, body: str) -> None:
         """Note that a tool's output holds credential material the target returned.

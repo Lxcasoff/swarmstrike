@@ -138,3 +138,55 @@ def test_an_endpoint_that_is_not_there_gives_nothing_back() -> None:
     dependency, so a campaign does not fail when it is unreachable."""
     nowhere = _summariser("https://127.0.0.1:1/v1")
     assert nowhere.summarise("output") is None
+
+
+# ---------------------------------------------------------------------------
+#  Wired into the executor
+# ---------------------------------------------------------------------------
+def test_the_executor_runs_it_and_says_whose_account_it_is(endpoint, tmp_path) -> None:
+    """The feature existed for a while without being connected to anything.
+    This is the test that would have caught that."""
+    import asyncio
+
+    from swarmstrike.tools.executor import ToolExecutor
+
+    executor = ToolExecutor.__new__(ToolExecutor)
+    executor.summariser = _summariser(endpoint)
+    executor.summariser.config.min_chars = 10
+    executor._emit = lambda *a, **k: None
+
+    out = asyncio.run(executor._maybe_summarise(
+        "x" * 4000, "nuclei -u https://app.test", tmp_path / "0007.txt"))
+
+    assert "Three hosts, all 200." in out
+    # An agent must know when it is reading a model's account rather than the
+    # tool's own output, or a finding rests on a paraphrase unknowingly.
+    assert "not the tool's output" in out
+    assert "0007.txt" in out
+    assert len(_Endpoint.seen) == 1
+
+
+def test_short_output_is_not_worth_a_round_trip(endpoint, tmp_path) -> None:
+    import asyncio
+
+    from swarmstrike.tools.executor import ToolExecutor
+
+    executor = ToolExecutor.__new__(ToolExecutor)
+    executor.summariser = _summariser(endpoint)
+    executor.summariser.config.min_chars = 4_000
+    executor._emit = lambda *a, **k: None
+
+    text = "200 OK\n"
+    assert asyncio.run(executor._maybe_summarise(text, "curl", tmp_path / "x.txt")) == text
+    assert _Endpoint.seen == []
+
+
+def test_without_a_summariser_the_output_passes_through(tmp_path) -> None:
+    import asyncio
+
+    from swarmstrike.tools.executor import ToolExecutor
+
+    executor = ToolExecutor.__new__(ToolExecutor)
+    executor.summariser = None
+    text = "y" * 90_000
+    assert asyncio.run(executor._maybe_summarise(text, "curl", tmp_path / "x.txt")) == text

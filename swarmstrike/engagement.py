@@ -264,6 +264,10 @@ class OutputSummarisation(BaseModel):
     enabled: bool = False
     endpoint: str = ""
     model: str = ""
+    # Output shorter than this is left alone: a round trip costs more than it
+    # saves on something an agent can read whole. Lower it where the endpoint
+    # is your own and its capacity is not the constraint.
+    min_chars: int = 4_000
     # Output larger than this is cut before being sent: a summariser asked for
     # a verdict on a megabyte returns a worse answer and costs more.
     max_input_chars: int = 40_000
@@ -315,7 +319,12 @@ class RulesOfEngagement(BaseModel):
 class Budget(BaseModel):
     max_usd: float = 25.0
     max_tokens: int = 20_000_000
-    max_wall_clock_minutes: int = 180
+    # Zero runs until the work is done rather than until a clock runs out.
+    # Cost and tokens still hold, and so do the round ceiling, the lead
+    # declaring the surface exhausted, two barren rounds in a row, and the
+    # kill switch — which are the conditions that end a campaign on something
+    # meaningful rather than mid-thought.
+    max_wall_clock_minutes: int = 0
 
 
 class EmergencyContact(BaseModel):

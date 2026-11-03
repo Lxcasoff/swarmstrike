@@ -116,7 +116,9 @@ class BudgetTracker:
         return (
             f"${s.usd:.2f}/${self.budget.max_usd:.2f} · "
             f"{s.total_tokens:,}/{self.budget.max_tokens:,} tokens · "
-            f"{self.elapsed_minutes:.0f}/{self.budget.max_wall_clock_minutes} min"
+            + (f"{self.elapsed_minutes:.0f}/{self.budget.max_wall_clock_minutes} min"
+               if self.budget.max_wall_clock_minutes
+               else f"{self.elapsed_minutes:.0f} min, no time ceiling")
         )
 
     def check(self) -> None:
@@ -130,7 +132,14 @@ class BudgetTracker:
             raise BudgetExceeded(
                 f"token ceiling reached: {s.total_tokens:,} of {self.budget.max_tokens:,}"
             )
-        if self.elapsed_minutes >= self.budget.max_wall_clock_minutes:
+        # Zero means run until there is nothing left worth doing. The clock is
+        # the least meaningful of the four ceilings: what actually stops a
+        # campaign well is the lead deciding the surface is exhausted, two
+        # rounds in a row producing nothing new, the round ceiling, and the
+        # money. A campaign cut off mid-round by a timer has simply spent its
+        # budget without finishing its thought.
+        if (self.budget.max_wall_clock_minutes
+                and self.elapsed_minutes >= self.budget.max_wall_clock_minutes):
             raise BudgetExceeded(
                 f"time ceiling reached: {self.elapsed_minutes:.0f} of "
                 f"{self.budget.max_wall_clock_minutes} minutes"

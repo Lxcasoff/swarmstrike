@@ -265,10 +265,32 @@ class Campaign:
                 self.book.binaries()
                 | set(self.engagement.rules_of_engagement.arbitrary_execution.extra_binaries)
             ),
+            summariser=self._summariser(),
         )
 
         self.context = build_context(self.engagement)
         self._servers: dict[str, Any] = {}
+
+    def _summariser(self) -> Any:
+        """A model to shorten what the compressor could not, if authorized.
+
+        The contract names the endpoint, so the signature covers where output
+        may be sent. The key is read from the environment, so the contract
+        stays shareable with the client.
+        """
+        config = self.engagement.rules_of_engagement.output_summarisation
+        if not config.enabled:
+            return None
+
+        from .summarise import Summariser
+
+        summariser = Summariser(
+            config, api_key=os.environ.get("SWARMSTRIKE_SUMMARISER_KEY", "").strip())
+        if summariser.available:
+            self._emit("summariser.ready", endpoint=config.endpoint, model=config.model)
+        else:
+            self._emit("summariser.unavailable", reason=summariser.why_unavailable())
+        return summariser
 
     # ------------------------------------------------------------------
     def _setup(self) -> None:
