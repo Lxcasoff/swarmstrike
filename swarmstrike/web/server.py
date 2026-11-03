@@ -204,12 +204,24 @@ class Dashboard:
 
         session_id = uuid.uuid4().hex[:12]
         gate = QueueApprovalGate()
+
+        # A Campaign reports things while it is being constructed — whether a
+        # summariser is configured, whether a recipe would not load — and the
+        # session that records them does not exist until it returns. Holding
+        # those until it does keeps them, rather than dropping the one report
+        # that says whether a feature the operator just switched on is live.
+        held: list[tuple[str, dict[str, Any]]] = []
+        box: dict[str, Session] = {}
+
+        def record(kind: str, payload: dict[str, Any]) -> None:
+            target = box.get("session")
+            if target is None:
+                held.append((kind, payload))
+            else:
+                target.record(kind, payload)
+
         try:
-            campaign = Campaign(
-                config,
-                on_event=lambda kind, payload: session.record(kind, payload),
-                approval=gate,
-            )
+            campaign = Campaign(config, on_event=record, approval=gate)
         except ContractError as exc:
             raise HTTPException(
                 400,
@@ -220,6 +232,9 @@ class Dashboard:
             raise HTTPException(400, str(exc)) from exc
 
         session = Session(id=session_id, campaign=campaign, gate=gate)
+        box["session"] = session
+        for kind, payload in held:
+            session.record(kind, payload)
         self.sessions[session_id] = session
 
         # The contract sets how long an operator has before an unapproved

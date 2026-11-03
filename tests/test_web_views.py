@@ -203,3 +203,38 @@ def test_audit_view_carries_its_verification(client) -> None:
     assert filtered["matching"] == 0
     # Filtering the view must not change what the chain says about itself.
     assert filtered["verified"] is True
+
+
+def test_a_campaign_can_report_while_it_is_still_being_built(tmp_path, monkeypatch) -> None:
+    """A Campaign reports things from inside its constructor — whether a
+    summariser is configured, whether a recipe would not load — and the session
+    that records them does not exist until it returns. Referring to that
+    session from the event callback raised NameError and turned every start
+    into a 500 as soon as the first such report existed."""
+    import asyncio
+
+    from swarmstrike import engagement as contract
+    from swarmstrike.web.server import Dashboard, StartRequest
+
+    monkeypatch.setenv("SWARMSTRIKE_SCOPE_KEY", "a" * 64)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-not-used-here")
+    monkeypatch.delenv("SWARMSTRIKE_SUMMARISER_KEY", raising=False)
+
+    text = Path("lab/engagement.example.yaml").read_text()
+    # red_team carries `enabled: false` too, and it comes first.
+    head, sep, tail = text.partition("output_summarisation:")
+    contract_path = tmp_path / "engagement.yaml"
+    contract_path.write_text(head + sep + tail.replace("enabled: false", "enabled: true", 1))
+    contract.sign_file(contract_path)
+
+    session = asyncio.run(Dashboard().start(StartRequest(
+        engagement_path=str(contract_path),
+        workspace=str(tmp_path / "campaigns"),
+        domains=["recon"],
+        skip_preflight=True,
+    )))
+
+    # Held rather than dropped: this is the report that says whether a feature
+    # the operator just switched on is actually live.
+    kinds = [event["kind"] for event in session.history]
+    assert "summariser.unavailable" in kinds
