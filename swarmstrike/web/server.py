@@ -278,9 +278,17 @@ def create_app() -> FastAPI:
     # ------------------------------------------------------------------
     @app.get("/api/roster")
     async def roster() -> dict[str, Any]:
+        # The page used to hard-code the toolbox image, so a setup that built
+        # the minimal one still offered :latest and preflight failed on an
+        # image that was never built. What the server was configured with is
+        # what the page should show.
         return {
             "specialists": list(SPECIALIST_NAMES),
             "faces": AGENT_FACES,
+            "toolbox_image": os.environ.get(
+                "SWARMSTRIKE_TOOLBOX_IMAGE", "swarmstrike/toolbox:latest"),
+            "api_key_set": bool(os.environ.get("ANTHROPIC_API_KEY", "").strip()
+                                not in ("", "sk-ant-...")),
         }
 
     # ---- the contract, from the console ---------------------------------

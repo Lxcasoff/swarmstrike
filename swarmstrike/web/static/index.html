@@ -1983,6 +1983,19 @@ async function loadRoster() {
   } catch { /* unserved page: the fallback above is correct */ }
   const { specialists, faces } = payload;
   state.specialists = specialists; state.faces = faces;
+
+  // Show what this server is actually configured with, rather than a value
+  // written into the page: a setup that fell back to the minimal toolbox was
+  // still offered :latest, and preflight then failed on an image nobody built.
+  if (payload.toolbox_image) $("#image").value = payload.toolbox_image;
+  if (payload.api_key_set === false) {
+    const warning = el("div", "verdict no");
+    warning.textContent =
+      "No Anthropic API key. The console and the demonstration work without " +
+      "one, but a campaign cannot start. Put it in .env as ANTHROPIC_API_KEY " +
+      "and restart, or run ./run.sh --key sk-ant-…";
+    $("#contractVerdict").replaceChildren(warning);
+  }
   state.picks = new Set(specialists);
 
   const picks = $("#picks");
