@@ -34,16 +34,45 @@ ARG TRIVY_VERSION=0.58.1
 # Adding a binary here does not make it reachable: it must also be in
 # ALLOWED_BINARIES in swarmstrike/tools/catalog.py, and every command still
 # passes the engagement scope guard before it runs.
+# Two groups. The first has to install: without it the image is not a toolbox
+# at all. The second is attempted package by package, because a distribution
+# dropping one tool should cost that tool and not the whole image — nikto left
+# Debian before bookworm, and one name apt could not find failed the build for
+# everyone. Anything that does not install is simply absent, and `swarmstrike
+# probe` reports which recipes the image cannot serve, so the agents are never
+# offered a tool that is not there.
 RUN set -eux; \
     apt-get update; \
     apt-get install -y --no-install-recommends \
         ca-certificates curl wget unzip git jq xsltproc \
-        dnsutils whois iproute2 netcat-openbsd \
-        nmap \
-        nikto sslscan \
-        sqlmap \
-        smbclient snmp ldap-utils \
         python3 python3-minimal; \
+    for pkg in \
+        dnsutils whois iproute2 netcat-openbsd \
+        nmap sslscan sqlmap \
+        smbclient snmp ldap-utils; \
+    do \
+        apt-get install -y --no-install-recommends "$pkg" \
+            || echo "skipped: $pkg is not available in this distribution" >&2; \
+    done; \
+    rm -rf /var/lib/apt/lists/*
+
+# --- nikto -----------------------------------------------------------------
+# Not in Debian since before bookworm. It is a Perl program, so it installs
+# from its own release rather than from a package, and its absence is tolerated
+# the same way as anything else above.
+ARG NIKTO_VERSION=2.5.0
+RUN set -eux; \
+    if apt-get update && apt-get install -y --no-install-recommends \
+            perl libnet-ssleay-perl; then \
+        curl -fsSL -o /tmp/nikto.tar.gz \
+            "https://github.com/sullo/nikto/archive/refs/tags/${NIKTO_VERSION}.tar.gz" \
+        && mkdir -p /opt/nikto \
+        && tar -xzf /tmp/nikto.tar.gz -C /opt/nikto --strip-components=1 \
+        && printf '#!/bin/sh\nexec perl /opt/nikto/program/nikto.pl "$@"\n' > /usr/local/bin/nikto \
+        && chmod 0755 /usr/local/bin/nikto \
+        || echo "skipped: nikto could not be installed" >&2; \
+    fi; \
+    rm -f /tmp/nikto.tar.gz; \
     rm -rf /var/lib/apt/lists/*
 
 # --- Release binaries ------------------------------------------------------

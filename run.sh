@@ -112,8 +112,13 @@ command -v node >/dev/null 2>&1 \
 # --- 2. the package --------------------------------------------------------
 step "Installing swarmstrike"
 
-if python3 -c 'import swarmstrike' 2>/dev/null; then
-    ok "already importable"
+# Checked from another directory, and against a dependency rather than the
+# package itself. Run from the repository root, `import swarmstrike` finds the
+# source tree whether or not anything is installed, so this check passed on a
+# machine with no dependencies at all and the first command to need typer
+# failed instead.
+if (cd / && python3 -c 'import swarmstrike, typer, fastapi') 2>/dev/null; then
+    ok "already installed, with its dependencies"
 else
     pip install -q -e '.[web]' || die "pip install failed. In a managed Python
   (Debian, Homebrew) make a virtualenv first:
