@@ -313,6 +313,27 @@ def test_the_orchestrator_reports_by_keyword(parts) -> None:
     ]
 
 
+def test_emit_takes_a_payload_dict_as_well_as_keywords(parts) -> None:
+    """This class was written with fifteen positional-dict calls and three
+    keyword ones. Tightening it to keywords only broke the fifteen, and every
+    one of them surfaced as a campaign dying at the moment it first ran."""
+    from swarmstrike.orchestrator import Campaign
+
+    seen: list[tuple[str, dict]] = []
+    campaign = Campaign.__new__(Campaign)
+    campaign._sink = lambda event, payload: seen.append((event, payload))
+
+    campaign._emit("campaign.start", {"id": "C-1", "client": "lab"})
+    campaign._emit("summariser.ready", model="Qwen3_Coder-30B")
+    campaign._emit("ruling", {"finding": "F-1"}, verdict="confirmed")
+
+    assert seen == [
+        ("campaign.start", {"id": "C-1", "client": "lab"}),
+        ("summariser.ready", {"model": "Qwen3_Coder-30B"}),
+        ("ruling", {"finding": "F-1", "verdict": "confirmed"}),
+    ]
+
+
 def test_a_payload_may_carry_its_own_kind(parts) -> None:
     """Which is why the positional argument is named event, not kind."""
     from swarmstrike.orchestrator import Campaign

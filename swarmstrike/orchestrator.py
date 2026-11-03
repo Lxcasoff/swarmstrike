@@ -276,14 +276,20 @@ class Campaign:
         self.context = build_context(self.engagement)
         self._servers: dict[str, Any] = {}
 
-    def _emit(self, event: str, **payload: Any) -> None:
-        """Report something, by keyword, to whatever is listening.
+    def _emit(self, event: str, payload: dict[str, Any] | None = None,
+              **fields: Any) -> None:
+        """Report something to whatever is listening.
+
+        Both shapes work, and they merge: a payload dict, keyword arguments,
+        or both. This class was written with fifteen of the first and three of
+        the second, and tightening it to one broke the other — twice in a row,
+        each time only at the moment some call finally ran. Accepting both is
+        what stops the next one.
 
         Named `event` rather than `kind` so a payload may carry its own `kind`
-        field without colliding with the positional argument — the same reason
-        the executor's does.
+        field without colliding with the positional argument.
         """
-        self._sink(event, payload)
+        self._sink(event, {**(payload or {}), **fields})
 
     def _summariser(self) -> Any:
         """A model to shorten what the compressor could not, if authorized.
