@@ -35,7 +35,7 @@ curl, nuclei, httpx and ffuf from published release archives, which is enough
 for a web and API campaign:
 
 ```sh
-docker build -t swarmstrike/toolbox:minimal -f docker/Dockerfile.toolbox-minimal .
+docker build -t swarmstrike/toolbox:minimal -f docker/Dockerfile.toolbox-minimal docker/
 swarmstrike probe --image swarmstrike/toolbox:minimal
 ```
 
@@ -50,10 +50,13 @@ an agent that is told nmap exists will keep reaching for it.
 it. Re-sign it with your own key before running anything:
 
 ```sh
-export SWARMSTRIKE_SCOPE_KEY="$(openssl rand -hex 32)"
+source .env                 # the key ./run.sh generated lives here
 swarmstrike engagement sign lab/engagement.yaml
 swarmstrike engagement verify lab/engagement.yaml
 ```
+
+Use the key already in `.env` rather than generating another one: a new key
+leaves every contract you have already signed failing to verify.
 
 The scope names `172.31.77.0/24` explicitly. Private ranges are refused unless
 the contract names them, so that line is what makes the lab reachable at all —
