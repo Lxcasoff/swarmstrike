@@ -491,6 +491,26 @@ input:focus{outline:none;border-color:var(--accent-color);box-shadow:0 0 0 3px v
 .row>*{flex:1;min-width:150px}
 .hint{font-size:.72rem;color:var(--ink-faint);line-height:1.55}
 
+/* ─── contract editor ──────────────────────────────────────────────── */
+#yaml{
+  width:100%;min-height:300px;padding:12px 13px;border-radius:8px;
+  border:1px solid var(--border-color);background:var(--bg-primary);color:var(--ink);
+  font-family:var(--mono);font-size:.78rem;line-height:1.55;resize:vertical;
+}
+#yaml:focus{outline:none;border-color:var(--accent-color);
+  box-shadow:0 0 0 3px var(--sev-low-bg)}
+.rulings{margin-top:10px;border:1px solid var(--border-color);border-radius:8px;
+  overflow:hidden}
+.ruling{display:flex;align-items:baseline;gap:10px;padding:8px 12px;font-size:.78rem;
+  border-bottom:1px solid var(--line-soft)}
+.ruling:last-child{border-bottom:none}
+.ruling .t{font-family:var(--mono);flex:1;min-width:0;word-break:break-all}
+.ruling .v{font-weight:650;text-transform:uppercase;font-size:.66rem;letter-spacing:.06em;
+  white-space:nowrap}
+.ruling.yes .v{color:var(--success-color)}
+.ruling.no .v{color:var(--error-color)}
+.ruling .r{color:var(--ink-faint);font-family:var(--mono);font-size:.68rem;white-space:nowrap}
+
 /* ─── drawer ───────────────────────────────────────────────────────── */
 .scrim{position:fixed;inset:0;background:#0008;backdrop-filter:blur(3px);z-index:40;
   opacity:0;pointer-events:none;transition:.22s}
@@ -744,6 +764,36 @@ pre{margin:0;padding:12px 14px;border-radius:8px;background:var(--bg-secondary);
             scope shown below is exactly what the agents will be allowed to touch.
           </p>
         </div>
+        <div class="row" style="justify-content:flex-start;gap:8px">
+          <button class="btn" id="editBtn" style="flex:none">Edit the contract</button>
+          <button class="btn" id="signBtn" style="flex:none">Sign it</button>
+          <button class="btn" id="verifyBtn" style="flex:none">Verify</button>
+        </div>
+
+        <div id="editor" hidden>
+          <label for="yaml">The contract, as it will be signed</label>
+          <textarea id="yaml" spellcheck="false" rows="22"></textarea>
+          <div class="row" style="justify-content:flex-end;gap:8px;margin-top:8px">
+            <span class="hint" id="editHint" style="flex:1"></span>
+            <button class="btn" id="cancelEdit" style="flex:none">Close</button>
+            <button class="btn-primary" id="saveBtn" style="flex:none">Save</button>
+          </div>
+        </div>
+
+        <div>
+          <label for="targets">Try targets against the scope guard</label>
+          <div class="row" style="gap:8px">
+            <input type="text" id="targets" spellcheck="false"
+                   placeholder="app.client.example 10.0.0.5 8.8.8.8 127.0.0.1">
+            <button class="btn" id="checkBtn" style="flex:none">Check</button>
+          </div>
+          <p class="hint" style="margin:7px 0 0">
+            Each one comes back allowed or refused, with the rule that decided it.
+            Worth doing before every engagement, not once.
+          </p>
+          <div id="checkResult"></div>
+        </div>
+
         <div id="contractVerdict"></div>
         <div>
           <label>Roster</label>
@@ -764,7 +814,6 @@ pre{margin:0;padding:12px 14px;border-radius:8px;background:var(--bg-secondary);
           Skip the Docker and toolbox image check
         </label>
         <div class="row" style="justify-content:flex-end">
-          <button class="btn" id="verifyBtn" style="flex:none">Verify contract</button>
           <button class="btn-primary" id="startBtn" style="flex:none" disabled>Start campaign</button>
         </div>
       </div>
@@ -1981,6 +2030,105 @@ async function verifyContract() {
   box.replaceChildren(div);
   $("#startBtn").disabled = !(v.ok && v.window_open);
 }
+
+/* ── the contract, from the console ─────────────────────────────────
+   Writing, signing and scope-checking were command-line only, so the console
+   could run a campaign but not prepare one. Signing is still the operator's
+   deliberate act; it happens on the page they already have open. */
+function contractPath() { return $("#path").value.trim() || "engagement.yaml"; }
+
+async function post(path, body) {
+  const res = await fetch(`/api/engagement/${path}`, {
+    method: "POST",
+    headers: {"content-type": "application/json"},
+    body: JSON.stringify({engagement_path: contractPath(), ...body}),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.detail || `${res.status}`);
+  return data;
+}
+
+function say(text, bad) {
+  const hint = $("#editHint");
+  hint.textContent = text;
+  hint.style.color = bad ? "var(--error-color)" : "var(--text-secondary)";
+}
+
+$("#editBtn").onclick = async () => {
+  const box = $("#editor");
+  if (!box.hidden) { box.hidden = true; return; }
+  try {
+    const res = await fetch(
+      `/api/engagement/raw?path=${encodeURIComponent(contractPath())}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || `${res.status}`);
+    $("#yaml").value = data.text;
+    box.hidden = false;
+    say(data.exists
+      ? `${data.path} — editing it breaks its signature, so sign it again after saving.`
+      : `${data.path} does not exist yet; this is the starter. Fill it in and save.`);
+  } catch (err) { say(String(err.message || err), true); }
+};
+
+$("#cancelEdit").onclick = () => { $("#editor").hidden = true; };
+
+$("#saveBtn").onclick = async () => {
+  const btn = $("#saveBtn");
+  btn.disabled = true; btn.textContent = "Saving…";
+  try {
+    const data = await post("save", {text: $("#yaml").value});
+    say(data.reason, !data.ok);
+    if (data.ok) $("#startBtn").disabled = true;   // unsigned again
+  } catch (err) { say(String(err.message || err), true); }
+  btn.disabled = false; btn.textContent = "Save";
+};
+
+$("#signBtn").onclick = async () => {
+  const btn = $("#signBtn");
+  btn.disabled = true; btn.textContent = "Signing…";
+  const box = $("#contractVerdict");
+  try {
+    const data = await post("sign", {});
+    box.replaceChildren(Object.assign(
+      el("div", `verdict ${data.ok ? "ok" : "no"}`),
+      {textContent: data.ok
+        ? `✓ ${data.reason} Fingerprint ${String(data.fingerprint).slice(0, 16)}…`
+        : `✗ ${data.reason}`}));
+    if (data.ok) verifyContract();
+  } catch (err) {
+    box.replaceChildren(Object.assign(el("div", "verdict no"),
+      {textContent: "✗ " + (err.message || err)}));
+  }
+  btn.disabled = false; btn.textContent = "Sign it";
+};
+
+$("#checkBtn").onclick = async () => {
+  const box = $("#checkResult");
+  const targets = $("#targets").value.split(/[\s,]+/).filter(Boolean);
+  if (!targets.length) { box.replaceChildren(); return; }
+  box.replaceChildren(Object.assign(el("div", "hint"), {textContent: "Checking…"}));
+  try {
+    const data = await post("check", {targets});
+    if (!data.ok) {
+      box.replaceChildren(Object.assign(el("div", "verdict no"),
+        {textContent: "✗ " + data.reason}));
+      return;
+    }
+    const list = el("div", "rulings");
+    for (const r of data.rulings) {
+      const row = el("div", `ruling ${r.allowed ? "yes" : "no"}`);
+      row.append(el("span", "t", r.target),
+                 el("span", "v", r.allowed ? "allowed" : "refused"),
+                 el("span", "r", r.rule));
+      row.title = r.reason;
+      list.append(row);
+    }
+    box.replaceChildren(list);
+  } catch (err) {
+    box.replaceChildren(Object.assign(el("div", "verdict no"),
+      {textContent: "✗ " + (err.message || err)}));
+  }
+};
 
 async function startCampaign() {
   const btn = $("#startBtn");

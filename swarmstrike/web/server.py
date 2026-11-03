@@ -283,6 +283,106 @@ def create_app() -> FastAPI:
             "faces": AGENT_FACES,
         }
 
+    # ---- the contract, from the console ---------------------------------
+    # Writing, signing and scope-checking a contract were command-line only,
+    # which meant the console could run a campaign but not prepare one. The
+    # signature is still a deliberate act by the operator; it is the same act,
+    # performed from the page they already have open rather than from a
+    # terminal in another window.
+
+    def _contract_path(raw: str) -> Path:
+        """A path inside the working directory, and nothing else."""
+        path = Path(raw or "engagement.yaml")
+        if path.is_absolute() or ".." in path.parts:
+            raise HTTPException(400, "the contract path must sit under the working directory")
+        if path.suffix not in (".yaml", ".yml"):
+            raise HTTPException(400, "a contract is a .yaml file")
+        return path
+
+    @app.get("/api/engagement/raw")
+    async def read_contract(path: str = "engagement.yaml") -> dict[str, Any]:
+        target = _contract_path(path)
+        if not target.is_file():
+            # Nothing there yet: hand back the starter so the page can show it.
+            template = Path(__file__).resolve().parents[2] / "engagement.example.yaml"
+            text = template.read_text(encoding="utf-8") if template.is_file() else ""
+            return {"path": str(target), "exists": False, "text": text}
+        return {
+            "path": str(target),
+            "exists": True,
+            "text": target.read_text(encoding="utf-8"),
+        }
+
+    @app.post("/api/engagement/save")
+    async def save_contract(body: dict[str, str]) -> dict[str, Any]:
+        """Write a contract, after checking it parses. Writing breaks any
+        signature, which is the point: an edited contract is a new one."""
+        target = _contract_path(body.get("engagement_path", ""))
+        text = body.get("text", "")
+        if not text.strip():
+            raise HTTPException(400, "an empty contract is not a contract")
+
+        import yaml
+        try:
+            parsed = yaml.safe_load(text)
+        except yaml.YAMLError as exc:
+            return {"ok": False, "reason": f"this is not valid YAML: {exc}"}
+        if not isinstance(parsed, dict):
+            return {"ok": False, "reason": "a contract is a mapping of fields"}
+        try:
+            contract.Engagement.model_validate(parsed)
+        except Exception as exc:  # noqa: BLE001 — pydantic raises its own type
+            first = str(exc).splitlines()
+            return {"ok": False, "reason": "\n".join(first[:6])}
+
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(text, encoding="utf-8")
+        return {"ok": True, "path": str(target),
+                "reason": "saved. It is unsigned until you sign it."}
+
+    @app.post("/api/engagement/sign")
+    async def sign_contract(body: dict[str, str]) -> dict[str, Any]:
+        target = _contract_path(body.get("engagement_path", ""))
+        if not target.is_file():
+            raise HTTPException(404, f"no contract at {target}")
+        try:
+            signed = contract.sign_file(target)
+        except ContractError as exc:
+            return {"ok": False, "reason": str(exc)}
+        return {
+            "ok": True,
+            "fingerprint": signed.integrity.fingerprint,
+            "signed_at": signed.integrity.signed_at,
+            "reason": "signed. Any edit after this point is detected.",
+        }
+
+    @app.post("/api/engagement/check")
+    async def check_targets(body: dict[str, Any]) -> dict[str, Any]:
+        """Ask the scope guard how it would rule on specific targets."""
+        target = _contract_path(body.get("engagement_path", ""))
+        raw = body.get("targets") or []
+        targets = [t.strip() for t in (raw if isinstance(raw, list)
+                                       else str(raw).split()) if t.strip()]
+        if not targets:
+            raise HTTPException(400, "name at least one target")
+        try:
+            engagement = contract.load(target)
+        except ContractError as exc:
+            return {"ok": False, "reason": str(exc), "rulings": []}
+
+        from ..scope import ScopeGuard
+        guard = ScopeGuard(engagement, resolve=False)
+        rulings = []
+        for item in targets[:40]:
+            decision = guard.check_url(item) if "://" in item else guard.check_host(item)
+            rulings.append({
+                "target": item,
+                "allowed": decision.allowed,
+                "rule": decision.rule,
+                "reason": decision.reason,
+            })
+        return {"ok": True, "rulings": rulings}
+
     @app.post("/api/engagement/verify")
     async def verify_contract(body: dict[str, str]) -> dict[str, Any]:
         """Check a contract before offering to run it."""
