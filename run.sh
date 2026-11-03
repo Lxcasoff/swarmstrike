@@ -88,6 +88,21 @@ path.write_text("\n".join(lines) + "\n")
 PY
 }
 
+LOG_DIR="${TMPDIR:-/tmp}/swarmstrike-setup.$$"
+mkdir -p "$LOG_DIR"
+
+# Show what actually failed. An earlier version printed a guess at the cause
+# and threw the output away, which sent someone looking at their network when
+# the build had broken on something else entirely.
+tail_log() {
+    printf '%s  ── last lines of %s ──%s\n' "$DIM" "$1" "$OFF"
+    # Enough lines to carry the tool's own error, not just docker's summary of
+    # which step failed: apt says why several lines above the line docker
+    # quotes back.
+    tail -n 40 "$1" | sed 's/^/    /'
+    printf '%s  ── full log: %s ──%s\n' "$DIM" "$1" "$OFF"
+}
+
 # --- 1. prerequisites ------------------------------------------------------
 step "Checking prerequisites"
 
@@ -117,13 +132,49 @@ step "Installing swarmstrike"
 # source tree whether or not anything is installed, so this check passed on a
 # machine with no dependencies at all and the first command to need typer
 # failed instead.
-if (cd / && python3 -c 'import swarmstrike, typer, fastapi') 2>/dev/null; then
+# A virtualenv from an earlier run comes first, so every python3 and
+# swarmstrike below — including the ones this script execs at the end —
+# resolves to it.
+use_venv() { export PATH="$PWD/.venv/bin:$PATH" VIRTUAL_ENV="$PWD/.venv"; }
+[ -x .venv/bin/python ] && use_venv
+
+installed() { (cd / && python3 -c 'import swarmstrike, typer, fastapi') 2>/dev/null; }
+
+make_venv() {
+    python3 -m venv .venv > "$LOG_DIR/venv.log" 2>&1 || die "could not create a
+  virtualenv. Debian and Ubuntu ship that separately:
+      sudo apt install python3-venv python3-full
+  then run this again. The error is in $LOG_DIR/venv.log."
+    use_venv
+}
+
+if installed; then
     ok "already installed, with its dependencies"
 else
-    pip install -q -e '.[web]' || die "pip install failed. In a managed Python
-  (Debian, Homebrew) make a virtualenv first:
-      python3 -m venv .venv && source .venv/bin/activate"
-    ok "installed with the dashboard extras"
+    if python3 -m pip install -q -e '.[web]' > "$LOG_DIR/pip.log" 2>&1; then
+        ok "installed with the dashboard extras"
+    else
+        # PEP 668: Debian, Ubuntu and Homebrew refuse to install into the
+        # system Python, and they are right to. Telling the operator to make a
+        # virtualenv by hand was one manual step in a script whose whole point
+        # is that there are none. The answer is a virtualenv, not
+        # --break-system-packages, which would do what the OS is preventing.
+        if grep -q 'externally-managed-environment' "$LOG_DIR/pip.log"; then
+            printf '%s  this Python is managed by the system; using a virtualenv%s\n' \
+                "$DIM" "$OFF"
+        else
+            printf '%s  the system Python would not take it; using a virtualenv%s\n' \
+                "$DIM" "$OFF"
+        fi
+        make_venv
+        python3 -m pip install -q -e '.[web]' > "$LOG_DIR/pip.log" 2>&1 || {
+            tail_log "$LOG_DIR/pip.log"
+            die "the install failed inside the virtualenv too."
+        }
+        ok "installed into .venv, with the dashboard extras"
+    fi
+    installed || die "the install reported success but swarmstrike still does not
+  import with its dependencies. The log is at $LOG_DIR/pip.log."
 fi
 
 command -v claude >/dev/null 2>&1 \
@@ -133,9 +184,6 @@ command -v claude >/dev/null 2>&1 \
 
 # --- 3. the toolbox image --------------------------------------------------
 step "Building the toolbox image"
-
-LOG_DIR="${TMPDIR:-/tmp}/swarmstrike-setup.$$"
-mkdir -p "$LOG_DIR"
 
 # A build that prints nothing for four minutes looks like a hang, and someone
 # interrupting it is a reasonable response to what they are shown.
@@ -157,18 +205,6 @@ run_build() {   # run_build <log> <message> <docker build args...>
     local log=$1 message=$2; shift 2
     docker build "$@" > "$log" 2>&1 &
     spinner $! "$message"
-}
-
-# Show what actually failed. An earlier version printed a guess at the cause
-# and threw the output away, which sent someone looking at their network when
-# the build had broken on something else entirely.
-tail_log() {
-    printf '%s  ── last lines of %s ──%s\n' "$DIM" "$1" "$OFF"
-    # Enough lines to carry the tool's own error, not just docker's summary of
-    # which step failed: apt says why several lines above the line docker
-    # quotes back.
-    tail -n 40 "$1" | sed 's/^/    /'
-    printf '%s  ── full log: %s ──%s\n' "$DIM" "$1" "$OFF"
 }
 
 # A build the operator interrupted is not a build that failed, and saying so
