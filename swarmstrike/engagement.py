@@ -247,6 +247,45 @@ class RedTeam(BaseModel):
         return self
 
 
+class OutputSummarisation(BaseModel):
+    """Having a model shorten tool output before an agent reads it.
+
+    The deterministic compressor handles the shapes our recipes produce and
+    needs no network. This is for what it cannot shorten — an HTML page, an
+    unfamiliar format — and it is a different kind of decision, because the
+    output leaves the machine. A client's scan results describe their
+    unremediated weaknesses, so where those may be sent belongs in the signed
+    contract rather than in a configuration file someone can edit afterwards.
+
+    Off unless the contract turns it on, and the endpoint is named here rather
+    than read from the environment, so the signature covers where data goes.
+    """
+
+    enabled: bool = False
+    endpoint: str = ""
+    model: str = ""
+    # Output larger than this is cut before being sent: a summariser asked for
+    # a verdict on a megabyte returns a worse answer and costs more.
+    max_input_chars: int = 40_000
+    timeout_s: int = 60
+
+    @model_validator(mode="after")
+    def _an_enabled_summariser_needs_somewhere_to_go(self) -> "OutputSummarisation":
+        if not self.enabled:
+            return self
+        if not self.endpoint or not self.model:
+            raise ValueError(
+                "output_summarisation.enabled requires both an endpoint and a model. "
+                "A contract that authorizes sending output somewhere has to say where."
+            )
+        if not self.endpoint.startswith("https://"):
+            raise ValueError(
+                f"output_summarisation.endpoint must be https — {self.endpoint!r} would "
+                f"send a client's scan output in the clear."
+            )
+        return self
+
+
 class RulesOfEngagement(BaseModel):
     intensity: Literal["quiet", "normal", "aggressive"] = "normal"
     max_requests_per_second: int = 10
@@ -267,6 +306,10 @@ class RulesOfEngagement(BaseModel):
 
     # Commands the recipe set does not cover. Structured only, by default.
     arbitrary_execution: ArbitraryExecution = Field(default_factory=ArbitraryExecution)
+
+    # Sending output to a model to be summarised. Off by default: it moves a
+    # client's scan output off this machine.
+    output_summarisation: OutputSummarisation = Field(default_factory=OutputSummarisation)
 
 
 class Budget(BaseModel):
