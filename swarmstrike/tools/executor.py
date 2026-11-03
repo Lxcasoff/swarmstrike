@@ -24,6 +24,7 @@ from typing import Any
 from .. import sensitive
 from ..approval import ApprovalGate, ApprovalRequest, AutoDenyGate
 from ..audit import AuditLog
+from ..compress import compress
 from ..killswitch import KillSwitch
 from ..knowledge import KnowledgeBase
 from ..scope import Decision, ScopeGuard
@@ -88,11 +89,7 @@ class ToolResult:
         parts = [header, body]
         if self.stderr.strip():
             parts.append(f"--- stderr ---\n{self.stderr}")
-        if self.truncated:
-            parts.append(
-                f"--- output truncated at {AGENT_OUTPUT_LIMIT} characters; "
-                f"full output at {self.output_path} ---"
-            )
+
         return "\n\n".join(parts)
 
 
@@ -341,8 +338,12 @@ class ToolExecutor:
         output_path.write_text(body, encoding="utf-8")
         self._mark_if_sensitive(agent, output_path, body)
 
-        truncated = len(stdout) > AGENT_OUTPUT_LIMIT
-        visible = stdout[:AGENT_OUTPUT_LIMIT] if truncated else stdout
+        # Shape what the agent reads; the record on disk is already written
+        # and hashed. A cut by position threw away the end of a scanner's
+        # output, which is where its findings are.
+        shrunk = compress(stdout, limit=AGENT_OUTPUT_LIMIT)
+        truncated = shrunk.strategy != "none"
+        visible = shrunk.render(str(output_path)) if truncated else stdout
 
         self.audit.command(
             agent=agent,
@@ -559,7 +560,8 @@ class ToolExecutor:
         output_path.write_text(body, encoding="utf-8")
         self._mark_if_sensitive(agent, output_path, body)
 
-        truncated = len(stdout) > AGENT_OUTPUT_LIMIT
+        shrunk = compress(stdout, limit=AGENT_OUTPUT_LIMIT)
+        truncated = shrunk.strategy != "none"
         self.audit.command(agent=agent, argv=[rendered], decision="allowed",
                            reason=decision.reason, rule="pipeline",
                            exit_code=exit_code, duration_ms=duration_ms,
@@ -573,7 +575,7 @@ class ToolExecutor:
 
         return ToolResult(
             argv=[rendered], exit_code=exit_code,
-            stdout=stdout[:AGENT_OUTPUT_LIMIT] if truncated else stdout,
+            stdout=shrunk.render(str(output_path)) if truncated else stdout,
             stderr=stderr[:AGENT_OUTPUT_LIMIT], duration_ms=duration_ms,
             output_path=output_path, truncated=truncated,
         )
