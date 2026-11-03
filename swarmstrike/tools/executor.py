@@ -820,8 +820,54 @@ class ToolExecutor:
             f"SWARMSTRIKE_HOST_WORKSPACE to the host path for it."
         )
 
+    @staticmethod
+    def check_api_key() -> tuple[bool, str]:
+        """Prove the key works before a campaign spends anything on finding out.
+
+        Without this the first round renders the whole war room, dispatches a
+        specialist, and dies on `Invalid API key` — after the contract has been
+        verified and a campaign directory opened. One request against the
+        models endpoint settles it in a second.
+        """
+        import json as _json
+        import os as _os
+        import urllib.error
+        import urllib.request
+
+        key = _os.environ.get("ANTHROPIC_API_KEY", "").strip()
+        if not key or key == "sk-ant-...":
+            return False, (
+                "ANTHROPIC_API_KEY is not set. The agents cannot run without it: "
+                "put it in .env, or start with ./run.sh --key sk-ant-…"
+            )
+
+        request = urllib.request.Request(
+            "https://api.anthropic.com/v1/models?limit=1",
+            headers={"x-api-key": key, "anthropic-version": "2023-06-01"},
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=15) as response:
+                _json.load(response)
+        except urllib.error.HTTPError as exc:
+            if exc.code in (401, 403):
+                return False, (
+                    f"the API in .env rejected this key ({exc.code}). Check it is "
+                    f"the whole key, has not been revoked, and belongs to an "
+                    f"account with credit."
+                )
+            return True, ""      # some other HTTP problem is not the key's fault
+        except (urllib.error.URLError, TimeoutError, OSError, ValueError):
+            # Offline, or a proxy in the way. Not something to refuse a
+            # campaign over: the campaign will say so itself soon enough.
+            return True, ""
+        return True, ""
+
     async def preflight(self) -> tuple[bool, str]:
-        """Check Docker is reachable, the toolbox is present and mounts land."""
+        """Check the key works, Docker is reachable, the toolbox is present and
+        mounts land."""
+        ok, reason = self.check_api_key()
+        if not ok:
+            return False, reason
 
         try:
             process = await asyncio.create_subprocess_exec(
