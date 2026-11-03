@@ -292,3 +292,34 @@ def test_an_unreleased_claim_is_not_reported_as_running(parts) -> None:
     assert "agent-staked-this-out" in digest
     assert "(running)" not in digest
     assert "no result recorded" in digest
+
+
+def test_the_orchestrator_reports_by_keyword(parts) -> None:
+    """The event sink takes one positional payload dict; the class calls it
+    with keyword arguments. Three calls were written against the raw sink and
+    only the third one ever ran, taking a campaign down at startup."""
+    from swarmstrike.orchestrator import Campaign
+
+    seen: list[tuple[str, dict]] = []
+    campaign = Campaign.__new__(Campaign)
+    campaign._sink = lambda event, payload: seen.append((event, payload))
+
+    campaign._emit("summariser.unavailable", reason="no key")
+    campaign._emit("recipe.invalid", file="x.yaml", detail="bad")
+
+    assert seen == [
+        ("summariser.unavailable", {"reason": "no key"}),
+        ("recipe.invalid", {"file": "x.yaml", "detail": "bad"}),
+    ]
+
+
+def test_a_payload_may_carry_its_own_kind(parts) -> None:
+    """Which is why the positional argument is named event, not kind."""
+    from swarmstrike.orchestrator import Campaign
+
+    seen: list[tuple[str, dict]] = []
+    campaign = Campaign.__new__(Campaign)
+    campaign._sink = lambda event, payload: seen.append((event, payload))
+
+    campaign._emit("approval.requested", kind="shell", agent="web")
+    assert seen == [("approval.requested", {"kind": "shell", "agent": "web"})]

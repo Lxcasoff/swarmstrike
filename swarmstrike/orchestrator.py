@@ -209,7 +209,12 @@ class Campaign:
         approval: ApprovalGate | None = None,
     ) -> None:
         self.config = config
-        self._emit = on_event or (lambda _kind, _payload: None)
+        # The sink takes the payload as one positional dict; _emit below is
+        # what the rest of this class calls, with keyword arguments. Keeping
+        # the raw sink under its own name is what stops a call like
+        # _emit("x", reason=y) being written against it by mistake — which it
+        # was, three times, and only surfaced when the third one ran.
+        self._sink = on_event or (lambda _event, _payload: None)
 
         self.engagement = contract.load(config.engagement_path)
         # Autonomous execution requires a contract whose integrity can be proven.
@@ -259,7 +264,7 @@ class Campaign:
             ),
             max_concurrent=self.engagement.rules_of_engagement.max_concurrent_tools,
             min_interval_s=_interval_for(self.engagement.rules_of_engagement.intensity),
-            on_event=self._emit,
+            on_event=self._sink,
             approval=approval or AutoDenyGate(),
             allowed_binaries=frozenset(
                 self.book.binaries()
@@ -270,6 +275,15 @@ class Campaign:
 
         self.context = build_context(self.engagement)
         self._servers: dict[str, Any] = {}
+
+    def _emit(self, event: str, **payload: Any) -> None:
+        """Report something, by keyword, to whatever is listening.
+
+        Named `event` rather than `kind` so a payload may carry its own `kind`
+        field without colliding with the positional argument — the same reason
+        the executor's does.
+        """
+        self._sink(event, payload)
 
     def _summariser(self) -> Any:
         """A model to shorten what the compressor could not, if authorized.
@@ -307,7 +321,7 @@ class Campaign:
             kb=self.kb,
             killswitch=self.killswitch,
             book=self.book,
-            on_event=self._emit,
+            on_event=self._sink,
         )
         self._servers = {
             "toolbox": build_toolbox_server(ctx),
@@ -447,7 +461,7 @@ class Campaign:
             specialist_tools=specialist_tools,
             # The lead reads shared state and decides; it never touches a target.
             lead_tools=ANALYSIS_TOOLS,
-            on_event=lambda event, payload: self._emit(event, payload),
+            on_event=self._sink,
             max_rounds=self.config.max_search_rounds,
             max_parallel=self.config.max_parallel_agents,
             carries=self.executor.carries,
@@ -486,7 +500,7 @@ class Campaign:
             allowed_tools=ANALYSIS_TOOLS,
             context=self.context,
             specialist_prompts=specialist_prompts,
-            on_event=self._emit,
+            on_event=self._sink,
         )
 
         outcomes: list[Outcome] = []
