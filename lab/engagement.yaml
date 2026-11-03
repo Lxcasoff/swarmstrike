@@ -75,10 +75,26 @@ rules_of_engagement:
     extra_binaries: []
     approval_timeout_s: 300
 
+  # A model that shortens what the deterministic compressor could not. Off
+  # here, because turning it on sends this lab's tool output to that endpoint,
+  # and that is a decision the contract has to carry rather than a setting.
+  #
+  # To use it: set enabled to true, put the key in .env as
+  # SWARMSTRIKE_SUMMARISER_KEY, and sign the contract again. Output holding
+  # credential material is never sent, whatever this says.
+  output_summarisation:
+    enabled: false
+    endpoint: "https://ai.exodata.cloud/v1"
+    model: "Qwen3_Coder-30B"
+    min_chars: 1500
+
 budget:
   max_usd: 4.00
   max_tokens: 3000000
-  max_wall_clock_minutes: 25
+  # No clock. The campaign ends when the lead judges the surface exhausted,
+  # when two rounds in a row produce nothing new, at the round ceiling, or on
+  # the money — which are the conditions that end it on something meaningful.
+  max_wall_clock_minutes: 0
 
 contacts:
   emergency_stop:
@@ -88,6 +104,9 @@ contacts:
     - "any host answering outside 172.31.77.0/24"
     - "a container other than the two lab targets responding"
 
+# This signature was made with another key and no longer matches the contract
+# above. Sign it with yours — in the console, or:
+#     swarmstrike engagement sign lab/engagement.yaml
 integrity:
   fingerprint: 669919a4487fef9f1af3489030c10da9f189d99b7127a797bbcb7233518a1046
   signature: fc0aa441814295a7da3d9361d7a8e9884530c1c8a549aa7095005bf726b1c430

@@ -279,7 +279,53 @@ fi
 # --- 4. environment --------------------------------------------------------
 step "Setting up .env"
 
-[ -f .env ] || { cp .env.example .env; chmod 600 .env; ok "created .env from the example"; }
+if [ -f .env ]; then
+    # An .env written by an earlier version never gains the settings added
+    # since, because the file exists and nothing copies the example over it.
+    # Missing names are appended with the comments that explain them; values
+    # already there are not touched.
+    added=$(python3 - <<'PY'
+import pathlib, re
+
+env = pathlib.Path(".env")
+example = pathlib.Path(".env.example")
+
+assigned = re.compile(r"^([A-Z][A-Z0-9_]*)=")
+present = {
+    m.group(1) for line in env.read_text().splitlines()
+    if (m := assigned.match(line))
+}
+
+new_lines, comments, added = [], [], []
+for line in example.read_text().splitlines():
+    match = assigned.match(line)
+    if match:
+        if match.group(1) not in present:
+            added.append(match.group(1))
+            new_lines.extend(comments + [line])
+        comments = []
+    elif line.startswith("#") or not line.strip():
+        comments.append(line)
+    else:
+        comments = []
+
+if added:
+    env.write_text(env.read_text().rstrip("\n") + "\n\n"
+                   + "\n".join(new_lines).strip("\n") + "\n")
+print(" ".join(added))
+PY
+)
+    if [ -n "$added" ]; then
+        chmod 600 .env
+        ok ".env gained: $added"
+    else
+        ok ".env is up to date"
+    fi
+else
+    cp .env.example .env
+    chmod 600 .env
+    ok "created .env from the example"
+fi
 
 # The signing key. Generated here because a key is the one secret a script can
 # safely create: it authorizes nothing by itself, it only detects tampering.
