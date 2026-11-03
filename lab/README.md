@@ -49,6 +49,10 @@ an agent that is told nmap exists will keep reaching for it.
 `engagement.yaml` is signed, and the signature in it is keyed to whoever signed
 it. Re-sign it with your own key before running anything:
 
+`./run.sh` copies `lab/engagement.example.yaml` to `lab/engagement.yaml` the
+first time. That working copy is not tracked, because signing rewrites the
+file and a tracked one conflicts on every pull after the first signature.
+
 ```sh
 source .env                 # the key ./run.sh generated lives here
 swarmstrike engagement sign lab/engagement.yaml

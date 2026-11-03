@@ -375,6 +375,13 @@ else
     ok "$CONTRACT written, with every field to fill in"
 fi
 
+# The lab's contract is a working copy of the example, because signing rewrites
+# the file: tracked, it conflicts on every pull after the first signature.
+if [ -f lab/engagement.example.yaml ] && [ ! -f lab/engagement.yaml ]; then
+    cp lab/engagement.example.yaml lab/engagement.yaml
+    ok "lab/engagement.yaml created from the example — sign it before using it"
+fi
+
 load_env
 
 SIGNED=no

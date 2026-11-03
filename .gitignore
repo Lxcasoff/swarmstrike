@@ -5,6 +5,7 @@
 # A filled-in contract names a real client and their real targets, and carries
 # the authorization reference for the test. It belongs in the engagement's own
 # records, not in this repository.
+# This pattern has no slash, so it matches at every level, lab/ included.
 engagement.yaml
 engagement.local.yaml
 engagements/
