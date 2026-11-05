@@ -307,10 +307,16 @@ class Campaign:
 
         summariser = Summariser(
             config, api_key=os.environ.get("SWARMSTRIKE_SUMMARISER_KEY", "").strip())
-        if summariser.available:
-            self._emit("summariser.ready", endpoint=config.endpoint, model=config.model)
-        else:
+        if not summariser.available:
             self._emit("summariser.unavailable", reason=summariser.why_unavailable())
+            return summariser
+        refused = summariser.probe()
+        if refused:
+            # Ready used to mean "a key is configured", and an endpoint that
+            # refused every call looked exactly like one that worked.
+            self._emit("summariser.unavailable", reason=refused)
+            return None
+        self._emit("summariser.ready", endpoint=config.endpoint, model=config.model)
         return summariser
 
     # ------------------------------------------------------------------

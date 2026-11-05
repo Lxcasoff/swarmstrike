@@ -31,7 +31,7 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass
 
-from . import sensitive
+from . import __version__, sensitive
 from .engagement import OutputSummarisation
 
 SYSTEM_PROMPT = (
@@ -44,6 +44,15 @@ SYSTEM_PROMPT = (
     "invent anything the output does not contain. If the output shows "
     "nothing of interest, say so in one line."
 )
+
+# Sent on every request. Without it urllib announces itself as Python-urllib,
+# which some reverse proxies block outright: ai.exodata.cloud answers that with
+# a 403, and every summary silently fell back to the uncompressed output.
+USER_AGENT = f"swarmstrike/{__version__}"
+
+# Room for the account of a long listing. A reply that hits this anyway is cut
+# mid-line and is thrown away, never shown as if it were complete.
+MAX_SUMMARY_TOKENS = 1500
 
 
 @dataclass
@@ -59,6 +68,39 @@ class Summariser:
     def __init__(self, config: OutputSummarisation, api_key: str = "") -> None:
         self.config = config
         self.api_key = api_key
+        # Why the last call gave nothing back, so the caller can say so rather
+        # than leave the operator wondering why no summary ever appears.
+        self.last_error = ""
+
+    def _headers(self) -> dict[str, str]:
+        return {
+            "content-type": "application/json",
+            "authorization": f"Bearer {self.api_key}",
+            "user-agent": USER_AGENT,
+        }
+
+    def probe(self) -> str:
+        """Ask the endpoint whether it will serve us. Empty when it will.
+
+        Run once at campaign start, so `summariser.ready` means the endpoint
+        accepted this key, not merely that a key is configured.
+        """
+        url = self.config.endpoint.rstrip("/") + "/models"
+        request = urllib.request.Request(  # noqa: S310 — endpoint named in the contract
+            url, headers=self._headers(), method="GET")
+        try:
+            with urllib.request.urlopen(  # noqa: S310
+                request, timeout=min(self.config.timeout_s, 15)
+            ):
+                return ""
+        except urllib.error.HTTPError as exc:
+            # Not every compatible server lists its models; that says nothing
+            # about whether it will answer a completion.
+            if exc.code in (404, 405):
+                return ""
+            return f"{url} answered HTTP {exc.code}"
+        except (urllib.error.URLError, TimeoutError, OSError) as exc:
+            return f"{url} is unreachable: {exc}"
 
     @property
     def available(self) -> bool:
@@ -76,6 +118,7 @@ class Summariser:
 
     def summarise(self, text: str, *, context: str = "") -> Summary | None:
         """A shorter account of `text`, or None if it cannot or must not be made."""
+        self.last_error = ""
         if not self.available:
             return None
 
@@ -96,30 +139,40 @@ class Summariser:
                     else f"Output:\n{body}")},
             ],
             "temperature": 0,
-            "max_tokens": 700,
+            "max_tokens": MAX_SUMMARY_TOKENS,
         }
 
         url = self.config.endpoint.rstrip("/") + "/chat/completions"
         request = urllib.request.Request(
             url,
             data=json.dumps(payload).encode(),
-            headers={
-                "content-type": "application/json",
-                "authorization": f"Bearer {self.api_key}",
-            },
+            headers=self._headers(),
             method="POST",
         )
         try:
             with urllib.request.urlopen(request, timeout=self.config.timeout_s) as response:
                 answer = json.load(response)
-        except (urllib.error.URLError, TimeoutError, ValueError, OSError):
+        except urllib.error.HTTPError as exc:
             # A summariser that is down is not a campaign that fails.
+            self.last_error = f"the endpoint answered HTTP {exc.code}"
+            return None
+        except (urllib.error.URLError, TimeoutError, ValueError, OSError) as exc:
+            self.last_error = f"the endpoint could not be used: {exc}"
             return None
 
         try:
-            content = answer["choices"][0]["message"]["content"].strip()
+            choice = answer["choices"][0]
+            content = choice["message"]["content"].strip()
         except (KeyError, IndexError, TypeError, AttributeError):
+            self.last_error = "the endpoint's reply was not a chat completion"
+            return None
+        if choice.get("finish_reason") == "length":
+            # Cut off mid-sentence, possibly mid-address: 172.31.77.1 where the
+            # output said 172.31.77.10. A partial account of evidence is worse
+            # than none, so the compressed output stands.
+            self.last_error = "the summary hit the token limit and was discarded"
             return None
         if not content:
+            self.last_error = "the endpoint returned an empty summary"
             return None
         return Summary(content, self.config.model, len(body))

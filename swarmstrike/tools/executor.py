@@ -756,6 +756,9 @@ class ToolExecutor:
         summary = await asyncio.to_thread(
             self.summariser.summarise, text, context=command)
         if summary is None:
+            if self.summariser.last_error:
+                self._emit("output.summary_failed", tool=command.split(" ")[0],
+                           reason=self.summariser.last_error)
             return text
 
         self._emit("output.summarised", tool=command.split(" ")[0],

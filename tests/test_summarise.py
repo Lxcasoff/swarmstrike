@@ -190,3 +190,49 @@ def test_without_a_summariser_the_output_passes_through(tmp_path) -> None:
     executor.summariser = None
     text = "y" * 90_000
     assert asyncio.run(executor._maybe_summarise(text, "curl", tmp_path / "x.txt")) == text
+
+
+# ---------------------------------------------------------------------------
+#  Behaviour found against the real endpoint
+# ---------------------------------------------------------------------------
+def test_requests_name_themselves_rather_than_python_urllib(endpoint) -> None:
+    """ai.exodata.cloud's proxy answers Python-urllib with a 403."""
+    seen: list[str] = []
+    original = _Endpoint.do_POST
+
+    def recording(self):
+        seen.append(self.headers.get("user-agent", ""))
+        original(self)
+
+    _Endpoint.do_POST = recording
+    try:
+        _summariser(endpoint).summarise("output")
+    finally:
+        _Endpoint.do_POST = original
+    assert seen and seen[0].startswith("swarmstrike/")
+
+
+def test_a_summary_cut_at_the_token_limit_is_discarded(endpoint) -> None:
+    """A truncated reply ended on 172.31.77.1 where the output said .10."""
+    _Endpoint.reply = {"choices": [{
+        "message": {"content": "Host 172.31.77.1"}, "finish_reason": "length"}]}
+    summariser = _summariser(endpoint)
+    assert summariser.summarise("output") is None
+    assert "token limit" in summariser.last_error
+
+
+def test_a_refusal_is_reported_not_swallowed(endpoint) -> None:
+    _Endpoint.status = 403
+    summariser = _summariser(endpoint)
+    assert summariser.summarise("output") is None
+    assert "403" in summariser.last_error
+
+
+def test_the_probe_reports_an_endpoint_that_is_not_there() -> None:
+    assert "unreachable" in _summariser("https://127.0.0.1:1/v1").probe()
+
+
+def test_the_probe_reports_an_unexpected_status(endpoint) -> None:
+    # The fake endpoint has no GET handler, so /models answers 501; only 404
+    # and 405 mean "no listing here" and pass.
+    assert "501" in _summariser(endpoint).probe()
