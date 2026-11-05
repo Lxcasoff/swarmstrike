@@ -92,6 +92,23 @@ class BudgetTracker:
         if reported is not None:
             spend.usd = float(reported)
 
+        # Cumulative per session, so a later report for the same session can
+        # only be larger. Taking the latest instead let a smaller figure
+        # replace a bigger one whenever a session id came round again, and the
+        # campaign's cost went *down* while it ran — a ceiling computed from a
+        # number that can fall is not a ceiling. Keeping the high-water mark
+        # per field is monotonic whatever the harness does with its ids.
+        previous = self._by_session.get(session_id)
+        if previous is not None:
+            spend = Spend(
+                usd=max(previous.usd, spend.usd),
+                input_tokens=max(previous.input_tokens, spend.input_tokens),
+                output_tokens=max(previous.output_tokens, spend.output_tokens),
+                cache_read_tokens=max(previous.cache_read_tokens,
+                                      spend.cache_read_tokens),
+                cache_creation_tokens=max(previous.cache_creation_tokens,
+                                          spend.cache_creation_tokens),
+            )
         self._by_session[session_id] = spend
         return spend
 

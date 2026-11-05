@@ -344,3 +344,45 @@ def test_a_payload_may_carry_its_own_kind(parts) -> None:
 
     campaign._emit("approval.requested", kind="shell", agent="web")
     assert seen == [("approval.requested", {"kind": "shell", "agent": "web"})]
+
+
+# ---------------------------------------------------------------------------
+#  The budget has to be a ceiling
+# ---------------------------------------------------------------------------
+def test_recorded_spend_never_falls() -> None:
+    """The harness reports usage cumulatively per session, so a later report
+    for a session can only be larger. Taking the latest let a smaller figure
+    replace a bigger one whenever an id came round again, and a live campaign's
+    cost was seen going down while it ran. A ceiling computed from a number
+    that can fall is not a ceiling."""
+    from types import SimpleNamespace
+
+    from swarmstrike.budget import BudgetTracker
+    from swarmstrike.engagement import Budget
+
+    tracker = BudgetTracker(Budget(max_usd=4.0))
+
+    def report(session: str, usd: float) -> float:
+        tracker.record_result(
+            session, SimpleNamespace(model_usage=None, usage={}, total_cost_usd=usd))
+        return tracker.spend.usd
+
+    assert report("web:A", 0.30) == pytest.approx(0.30)
+    assert report("api:B", 0.20) == pytest.approx(0.50)
+    # The same session reporting less does not erase what it already spent.
+    assert report("web:A", 0.05) == pytest.approx(0.50)
+    # It does rise when that session genuinely spends more.
+    assert report("web:A", 0.40) == pytest.approx(0.60)
+
+
+def test_the_ceiling_still_stops_a_campaign() -> None:
+    from types import SimpleNamespace
+
+    from swarmstrike.budget import BudgetExceeded, BudgetTracker
+    from swarmstrike.engagement import Budget
+
+    tracker = BudgetTracker(Budget(max_usd=1.0))
+    tracker.record_result(
+        "web:A", SimpleNamespace(model_usage=None, usage={}, total_cost_usd=1.5))
+    with pytest.raises(BudgetExceeded, match="cost ceiling"):
+        tracker.check()
