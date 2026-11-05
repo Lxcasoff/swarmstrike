@@ -267,7 +267,10 @@ class Dashboard:
     # A campaign that stopped before it did anything is not a campaign that
     # finished. Reporting one as completed shows an operator "0 findings" for
     # a target that was never reached, which reads as a clean result.
-    _ENDED_BADLY = {"aborted": "aborted", "halted": "halted"}
+    # Out of budget is the same story when it leaves findings unreviewed.
+    _ENDED_BADLY = {
+        "aborted": "aborted", "halted": "halted", "budget_exhausted": "budget_exhausted",
+    }
 
     async def _drive(self, session: Session) -> None:
         try:

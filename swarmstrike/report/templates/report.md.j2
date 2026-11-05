@@ -47,6 +47,11 @@ classification: "Confidential — {{ meta.client }} and authorized recipients on
 | Informational | {{ counts.none }} |
 | **Total confirmed** | **{{ counts.total }}** |
 
+{% if counts.unreviewed %}
+**{{ counts.unreviewed }} proposed finding(s) were not reviewed** because the
+engagement's budget ran out first. They are not counted above and are listed,
+unchallenged, in section 6.
+{% endif %}
 {% if counts.theoretical %}
 A further {{ counts.theoretical }} weakness(es) are reported as unproven in
 section 6. These were identified but could not be confirmed within the rules of
@@ -306,8 +311,31 @@ assessment did not have. They are not presented as confirmed findings.
 **Suggested verification.** {{ finding.remediation or "Verify internally with privileged access." }}
 
 {% endfor %}
-{% else %}
+{% elif not unreviewed %}
 No unproven weaknesses were recorded.
+{% endif %}
+{% if unreviewed %}
+
+## Proposed but not reviewed
+
+The engagement's budget ran out before the following could be reviewed. Each is
+shown as the assessor who proposed it recorded it: it was not challenged, not
+adjudicated, and its severity is the assessor's own estimate. Treat each as a
+lead to verify, not as a finding.
+
+{% for finding in unreviewed %}
+### {{ finding.id }} — {{ finding.title }}
+
+| | |
+|---|---|
+| Proposed severity | {{ finding.severity | capitalize if finding.severity else "Unrated" }}{% if finding.cvss_score %} (CVSS {{ finding.cvss_score }}){% endif %} |
+| Affected asset | `{{ finding.asset }}` |
+| Category | {{ finding.domain | capitalize }} |
+| Status | Proposed, not reviewed |
+
+{{ finding.description or finding.summary }}
+
+{% endfor %}
 {% endif %}
 
 ---

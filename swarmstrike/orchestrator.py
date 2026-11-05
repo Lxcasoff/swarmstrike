@@ -418,6 +418,15 @@ class Campaign:
             except (Halted, BudgetExceeded):
                 pass
 
+        # A review the budget cut short is not a campaign that completed: the
+        # findings it never reached are still proposed, and calling the run
+        # complete told the operator there was nothing to see.
+        unreviewed = len(self.kb.findings("proposed"))
+        if unreviewed and status == "completed":
+            status = "budget_exhausted"
+            halted_reason = (
+                f"{unreviewed} finding(s) were not reviewed: the budget ran out first")
+
         report_path = self._write_report()
 
         self.kb.close_campaign(status)
@@ -528,8 +537,13 @@ class Campaign:
         for finding in proposed:
             try:
                 self.budget.check()
-            except BudgetExceeded:
-                self._emit("review.stopped", {"reason": "budget ceiling reached mid-review"})
+            except BudgetExceeded as exc:
+                remaining = len(proposed) - len(outcomes)
+                self.audit.record("review.stopped", reason=str(exc), unreviewed=remaining)
+                self._emit("review.stopped", {
+                    "reason": "budget ceiling reached mid-review",
+                    "unreviewed": remaining,
+                })
                 break
 
             outcome = await engine.run_round(finding["id"], 1)

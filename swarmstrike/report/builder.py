@@ -76,6 +76,12 @@ def _first_sentence(text: str) -> str:
 
 
 RISK_STATEMENTS = {
+    "Undetermined": (
+        "No finding was confirmed, but not because none was found: the assessment "
+        "stopped before the findings it proposed could be reviewed. Section 6 lists "
+        "them. Until they are reviewed, this report offers no conclusion about the "
+        "security of the assessed surface."
+    ),
     "Critical": (
         "At least one finding allows an attacker to compromise a system or its data "
         "directly, with no credentials and no user interaction. This should be treated "
@@ -118,6 +124,9 @@ class ReportBuilder:
             counts[key] = counts.get(key, 0) + 1
         counts["total"] = len(findings)
         counts["theoretical"] = len(self.kb.findings("theoretical"))
+        # Proposed and never reviewed: the campaign stopped first. Leaving them
+        # out produced a report that said nothing was found.
+        counts["unreviewed"] = len(self.kb.findings("proposed"))
         return counts
 
     @staticmethod
@@ -137,7 +146,15 @@ class ReportBuilder:
         surface = self.kb.summary()["assets"]
         chains = prepare_chains(self.kb.attack_paths(), self.kb.findings("confirmed"))
 
-        if not counts["total"]:
+        if not counts["total"] and counts["unreviewed"]:
+            body = (
+                f"This assessment examined {surface} asset(s) across {client}'s authorized "
+                f"surface and proposed {counts['unreviewed']} finding(s), but the "
+                f"engagement's budget ran out before any of them could be reviewed. None "
+                f"is therefore confirmed, and this report should not be read as a clean "
+                f"result: the unreviewed findings are listed in section 6."
+            )
+        elif not counts["total"]:
             body = (
                 f"This assessment examined {surface} asset(s) across {client}'s authorized "
                 f"external surface and confirmed no exploitable weaknesses within the "
@@ -179,6 +196,13 @@ class ReportBuilder:
                 f"{longest['steps'][-1]['summary']}. Every link was evidenced on "
                 f"its own, which also means breaking any single one of them breaks "
                 f"the whole path."
+            )
+
+        if counts["unreviewed"] and counts["total"]:
+            body += (
+                f" A further {counts['unreviewed']} proposed finding(s) were not reviewed "
+                f"before the budget ran out; they are listed in section 6 and are not "
+                f"counted above."
             )
 
         if counts["theoretical"]:
@@ -304,6 +328,13 @@ class ReportBuilder:
                 "Excluded assets and paths listed in section 2.2 were not examined at all; "
                 "no assurance is offered over them."
             )
+        if counts["unreviewed"]:
+            parts.append(
+                f"The engagement's budget ran out before {counts['unreviewed']} proposed "
+                "finding(s) could be reviewed. They are listed in section 6 as the "
+                "assessors recorded them, unchallenged, and may include false positives "
+                "as well as real weaknesses. Their severity has not been adjudicated."
+            )
         if counts["theoretical"]:
             parts.append(
                 "Weaknesses in section 6 are unproven and should be verified internally "
@@ -316,6 +347,8 @@ class ReportBuilder:
         confirmed = self.kb.findings("confirmed")
         counts = self._severity_counts(confirmed)
         risk = self._risk_level(counts)
+        if risk == "Informational" and counts["unreviewed"]:
+            risk = "Undetermined"
         decorated = self._decorate(confirmed)
         summary = self.kb.summary()
 
@@ -352,6 +385,7 @@ class ReportBuilder:
             "priorities": self._priorities(confirmed),
             "findings": decorated,
             "theoretical": self._decorate(self.kb.findings("theoretical")),
+            "unreviewed": self._decorate(self.kb.findings("proposed")),
             "assets_by_kind": assets_by_kind,
             "services": self.kb.services(),
             "roadmap": [
