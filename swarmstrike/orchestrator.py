@@ -351,6 +351,14 @@ class Campaign:
         })
 
         if not self.config.skip_preflight:
+            # Said once, where the operator is looking, rather than discovered
+            # when the first specialist dies.
+            if not os.environ.get("ANTHROPIC_API_KEY", "").strip():
+                self._emit("api_key.absent", reason=(
+                    "ANTHROPIC_API_KEY is not set. The campaign will run if the "
+                    "Claude Code CLI is signed in on this machine, and fail at "
+                    "the first agent if it is not."
+                ))
             ready, detail = await self.executor.preflight()
             self._emit("preflight", {"ready": ready, "detail": detail})
             if ready:

@@ -808,7 +808,11 @@ pre{margin:0;padding:12px 14px;border-radius:8px;background:var(--bg-secondary);
             <label for="image">Toolbox image</label>
             <input type="text" id="image" value="swarmstrike/toolbox:latest" spellcheck="false">
           </div>
-          <div style="max-width:150px">
+          <div style="max-width:190px">
+            <label for="network">Docker network</label>
+            <input type="text" id="network" spellcheck="false" placeholder="(default bridge)">
+          </div>
+          <div style="max-width:140px">
             <label for="rounds">Review rounds</label>
             <input type="number" id="rounds" value="2" min="1" max="4">
           </div>
@@ -1992,6 +1996,7 @@ async function loadRoster() {
   // written into the page: a setup that fell back to the minimal toolbox was
   // still offered :latest, and preflight then failed on an image nobody built.
   if (payload.toolbox_image) $("#image").value = payload.toolbox_image;
+  if (payload.network) $("#network").value = payload.network;
   if (payload.api_key_set === false) {
     const warning = el("div", "verdict no");
     warning.textContent =
@@ -2152,6 +2157,7 @@ async function startCampaign() {
   btn.disabled = true; btn.textContent = "Starting…";
 
   const body = {
+    network: $("#network").value.trim(),
     engagement_path: $("#path").value.trim(),
     domains: state.picks.size && state.picks.size < state.specialists.length
       ? [...state.picks] : null,

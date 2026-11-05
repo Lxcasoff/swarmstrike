@@ -54,6 +54,14 @@ class StartRequest(BaseModel):
     )
     review_rounds: int = Field(2, ge=1, le=4)
     skip_preflight: bool = False
+    network: str = Field(
+        default_factory=lambda: os.environ.get("SWARMSTRIKE_NETWORK", ""),
+        description=(
+            "Docker network the toolbox containers join. Without it they get the "
+            "default bridge and cannot reach a target on a user-defined network, "
+            "so every command fails to connect and the campaign finds nothing."
+        ),
+    )
 
 
 @dataclass
@@ -200,6 +208,7 @@ class Dashboard:
             max_review_rounds=request.review_rounds,
             toolbox_image=request.image,
             skip_preflight=request.skip_preflight,
+            network=request.network.strip() or None,
         )
 
         session_id = uuid.uuid4().hex[:12]
@@ -255,12 +264,26 @@ class Dashboard:
         asyncio.create_task(self._broadcast(session))
         return session
 
+    # A campaign that stopped before it did anything is not a campaign that
+    # finished. Reporting one as completed shows an operator "0 findings" for
+    # a target that was never reached, which reads as a clean result.
+    _ENDED_BADLY = {"aborted": "aborted", "halted": "halted"}
+
     async def _drive(self, session: Session) -> None:
         try:
-            await session.campaign.run()
+            result = await session.campaign.run()
         except Exception as exc:  # noqa: BLE001 — surfaced to the dashboard
             session.record("campaign.failed", {"detail": f"{type(exc).__name__}: {exc}"})
             session.status = "failed"
+        else:
+            status = getattr(result, "status", "completed")
+            session.status = self._ENDED_BADLY.get(status, "completed")
+            if session.status != "completed":
+                session.record("campaign.aborted", {
+                    "status": status,
+                    "detail": getattr(result, "halted_reason", "") or
+                              "the campaign stopped before it did any work",
+                })
         finally:
             if session.status == "running":
                 session.status = "completed"
@@ -302,6 +325,7 @@ def create_app() -> FastAPI:
             "faces": AGENT_FACES,
             "toolbox_image": os.environ.get(
                 "SWARMSTRIKE_TOOLBOX_IMAGE", "swarmstrike/toolbox:latest"),
+            "network": os.environ.get("SWARMSTRIKE_NETWORK", ""),
             "api_key_set": bool(os.environ.get("ANTHROPIC_API_KEY", "").strip()
                                 not in ("", "sk-ant-...")),
         }

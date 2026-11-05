@@ -873,10 +873,11 @@ class ToolExecutor:
 
         key = _os.environ.get("ANTHROPIC_API_KEY", "").strip()
         if not key or key == "sk-ant-...":
-            return False, (
-                "ANTHROPIC_API_KEY is not set. The agents cannot run without it: "
-                "put it in .env, or start with ./run.sh --key sk-ant-…"
-            )
+            # No key is not the same as a bad key. The harness drives the
+            # Claude Code CLI, which may be signed in on its own, and refusing
+            # here would block a campaign that would have run. If it is not
+            # signed in either, the first dispatch says so plainly.
+            return True, ""
 
         request = urllib.request.Request(
             "https://api.anthropic.com/v1/models?limit=1",
