@@ -2177,12 +2177,38 @@ async function startCampaign() {
     return;
   }
 
-  const session = await res.json();
+  attach(await res.json());
+}
+
+/* ── attaching to a campaign ────────────────────────────────────────── */
+function attach(session) {
   state.session = session.id;
   state.agents = new Map((session.agents||[]).map((a) => [a.agent, a]));
   $("#launch").hidden = true; $("#live").hidden = false;
   renderRoom(); renderHeader(session); renderNav(); showView("warroom");
   connect(session.id);
+}
+
+/* A campaign lives in the server, not in this page. Reloading used to lose
+   sight of one that was still running — which matters more now that a
+   campaign runs until the work is done rather than until a clock stops it.
+   The page asks what is live and reattaches to it. */
+async function resume() {
+  let sessions;
+  try {
+    const res = await fetch("/api/campaigns");
+    if (!res.ok) return false;
+    sessions = await res.json();
+  } catch { return false; }
+  if (!Array.isArray(sessions) || !sessions.length) return false;
+
+  // A running one if there is one, otherwise the most recent, so a reload
+  // after the end still shows the result rather than an empty launch panel.
+  const live = sessions.find((s) => s.status === "running") ||
+               sessions[sessions.length - 1];
+  if (!live) return false;
+  attach(live);
+  return true;
 }
 
 
@@ -2601,6 +2627,8 @@ $("#haltBtn").onclick = async () => {
 };
 
 const DEMO = new URLSearchParams(location.search).has("demo");
+// Reattach before anything else, so a reload lands back on the campaign.
+if (!DEMO) { resume(); }
 loadRoster().then(() => { if (DEMO) runDemo(); }).catch(() => { if (DEMO) runDemo(); });
 setInterval(() => { if (state.session && !state.demo) refreshHeader(); }, 5000);
 setInterval(tickApprovals, 1000);
