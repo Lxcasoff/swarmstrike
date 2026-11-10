@@ -337,6 +337,17 @@ def create_app() -> FastAPI:
     # performed from the page they already have open rather than from a
     # terminal in another window.
 
+    def _readable(exc: Exception) -> str:
+        """A validation failure an operator can act on, not a pydantic dump."""
+        errors = getattr(exc, "errors", None)
+        if not callable(errors):
+            return str(exc).split("\n")[0]
+        lines = []
+        for item in errors()[:6]:
+            where = ".".join(str(p) for p in item.get("loc", ())) or "the contract"
+            lines.append(f"{where}: {item.get('msg', 'is not valid')}")
+        return "\n".join(lines) or str(exc)
+
     def _contract_path(raw: str) -> Path:
         """A path inside the working directory, and nothing else."""
         path = Path(raw or "engagement.yaml")
@@ -359,6 +370,58 @@ def create_app() -> FastAPI:
             "exists": True,
             "text": target.read_text(encoding="utf-8"),
         }
+
+    @app.get("/api/engagement/form")
+    async def contract_as_json(path: str = "engagement.yaml") -> dict[str, Any]:
+        """The contract as data, so the console can show a form for it.
+
+        A textarea of YAML is a file editor, not an interface: it asks the
+        operator to know the schema, the indentation and the field names
+        before they can authorize a test. The form works from this.
+        """
+        import yaml
+
+        target = _contract_path(path)
+        source = target if target.is_file() else (
+            Path(__file__).resolve().parents[2] / "engagement.example.yaml")
+        if not source.is_file():
+            raise HTTPException(404, f"no contract at {target} and no example to start from")
+        try:
+            data = yaml.safe_load(source.read_text(encoding="utf-8")) or {}
+        except yaml.YAMLError as exc:
+            return {"ok": False, "reason": f"{target} is not valid YAML: {exc}"}
+        return {
+            "ok": True,
+            "path": str(target),
+            "exists": target.is_file(),
+            "contract": data,
+        }
+
+    @app.post("/api/engagement/form")
+    async def save_contract_from_json(body: dict[str, Any]) -> dict[str, Any]:
+        """Write a contract from the form. Validated before anything is written."""
+        import yaml
+
+        target = _contract_path(str(body.get("engagement_path", "")))
+        data = body.get("contract")
+        if not isinstance(data, dict) or not data:
+            raise HTTPException(400, "no contract in the request")
+
+        # Writing a contract breaks its signature, so drop the old one rather
+        # than carry a fingerprint that no longer describes the file.
+        data.pop("integrity", None)
+        try:
+            contract.Engagement.model_validate(data)
+        except Exception as exc:  # noqa: BLE001 — pydantic raises its own type
+            return {"ok": False, "reason": _readable(exc)}
+
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(
+            yaml.safe_dump(data, sort_keys=False, allow_unicode=True, width=100),
+            encoding="utf-8",
+        )
+        return {"ok": True, "path": str(target),
+                "reason": "saved. It is unsigned until you sign it."}
 
     @app.post("/api/engagement/save")
     async def save_contract(body: dict[str, str]) -> dict[str, Any]:

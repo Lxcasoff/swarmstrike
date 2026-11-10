@@ -495,6 +495,36 @@ input:focus{outline:none;border-color:var(--accent-color);box-shadow:0 0 0 3px v
 .row>*{flex:1;min-width:150px}
 .hint{font-size:.72rem;color:var(--ink-faint);line-height:1.55}
 
+/* ─── contract form ────────────────────────────────────────────────── */
+.fsec{border:1px solid var(--border-color);border-radius:10px;margin:0 0 12px;
+  background:var(--bg-primary);overflow:hidden}
+.fsec>summary{padding:11px 14px;cursor:pointer;font-weight:600;font-size:.86rem;
+  list-style:none;display:flex;align-items:center;gap:9px;user-select:none}
+.fsec>summary::-webkit-details-marker{display:none}
+.fsec>summary::before{content:"▸";color:var(--text-muted);font-size:.8rem;transition:.15s}
+.fsec[open]>summary::before{transform:rotate(90deg)}
+.fsec>summary small{font-weight:400;color:var(--text-muted);font-size:.76rem;margin-left:auto}
+.fbody{padding:4px 14px 14px;display:grid;gap:13px}
+.fgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:13px}
+.fld label{display:block;font-size:.66rem;text-transform:uppercase;letter-spacing:.09em;
+  color:var(--text-muted);margin-bottom:5px;font-weight:600}
+.fld input[type=text],.fld input[type=number],.fld input[type=date],.fld select,.fld textarea{
+  width:100%;padding:8px 11px;border-radius:6px;border:1px solid var(--border-color);
+  background:var(--bg-primary);color:var(--ink);font-family:var(--mono);font-size:.8rem;
+}
+.fld textarea{min-height:66px;resize:vertical;line-height:1.5}
+.fld .note{font-size:.7rem;color:var(--text-muted);margin-top:5px;line-height:1.45;
+  font-family:var(--sans)}
+.fld input:focus,.fld select:focus,.fld textarea:focus{outline:none;
+  border-color:var(--accent-color);box-shadow:0 0 0 3px var(--sev-low-bg)}
+.sw{display:flex;align-items:flex-start;gap:10px;padding:8px 0;cursor:pointer}
+.sw input{margin:2px 0 0;width:16px;height:16px;flex:none;accent-color:var(--accent-color)}
+.sw .t{font-size:.82rem;line-height:1.4}
+.sw .t b{font-weight:600;display:block}
+.sw .t span{color:var(--text-muted);font-size:.74rem}
+.sw.guard .t b::after{content:" · guardrail";color:var(--success-color);font-weight:500;
+  font-size:.68rem;letter-spacing:.04em}
+
 /* ─── contract editor ──────────────────────────────────────────────── */
 #yaml{
   width:100%;min-height:300px;padding:12px 13px;border-radius:8px;
@@ -775,10 +805,19 @@ pre{margin:0;padding:12px 14px;border-radius:8px;background:var(--bg-secondary);
         </div>
 
         <div id="editor" hidden>
-          <label for="yaml">The contract, as it will be signed</label>
-          <textarea id="yaml" spellcheck="false" rows="22"></textarea>
-          <div class="row" style="justify-content:flex-end;gap:8px;margin-top:8px">
+          <div class="row" style="justify-content:space-between;align-items:center;gap:8px">
             <span class="hint" id="editHint" style="flex:1"></span>
+            <button class="btn" id="yamlToggle" style="flex:none">Edit the YAML instead</button>
+          </div>
+
+          <div id="form"></div>
+
+          <div id="yamlBox" hidden style="margin-top:12px">
+            <label for="yaml">The contract, as it will be signed</label>
+            <textarea id="yaml" spellcheck="false" rows="22"></textarea>
+          </div>
+
+          <div class="row" style="justify-content:flex-end;gap:8px;margin-top:12px">
             <button class="btn" id="cancelEdit" style="flex:none">Close</button>
             <button class="btn-primary" id="saveBtn" style="flex:none">Save</button>
           </div>
@@ -811,6 +850,11 @@ pre{margin:0;padding:12px 14px;border-radius:8px;background:var(--bg-secondary);
           <div style="max-width:190px">
             <label for="network">Docker network</label>
             <input type="text" id="network" spellcheck="false" placeholder="(default bridge)">
+            <p class="hint" style="margin:6px 0 0">
+              The Docker network the tool containers join. For the lab, <code>swarmlab</code>.
+              Leave it empty and they get the default bridge, so a target on a
+              user-defined network is unreachable and every command fails to connect.
+            </p>
           </div>
           <div style="max-width:140px">
             <label for="rounds">Review rounds</label>
@@ -2057,6 +2101,199 @@ async function verifyContract() {
    Writing, signing and scope-checking were command-line only, so the console
    could run a campaign but not prepare one. Signing is still the operator's
    deliberate act; it happens on the page they already have open. */
+/* ── the contract as a form ─────────────────────────────────────────
+   A textarea of YAML is a file editor, not an interface: it asks an operator
+   to know the schema, the indentation and the field names before they can
+   authorize a test. The fields are described once, here, and the form is
+   built from that description — so a field added to the contract is a line
+   added here rather than a block of markup. */
+const FIELDS = [
+  ["The engagement", "who this is for, and what it is", [
+    ["engagement.client", "text", "Client", "The organisation whose systems are being tested."],
+    ["engagement.mission", "text", "Mission", ""],
+    ["engagement.id", "text", "Engagement ID", "Appears on the report and in every audit entry."],
+    ["engagement.reference", "text", "Your reference", "A quote or ticket number, if you have one."],
+  ]],
+  ["Who authorized it", "reproduced on the report cover and in the audit header", [
+    ["engagement.authorized_by.name", "text", "Name", ""],
+    ["engagement.authorized_by.role", "text", "Role", ""],
+    ["engagement.authorized_by.email", "text", "Email", ""],
+    ["engagement.authorized_by.authorization_ref", "text", "Written authorization",
+     "The document that authorizes this test. Without one, do not run this."],
+    ["engagement.authorized_by.signed_on", "date", "Signed on", ""],
+  ]],
+  ["When", "a command outside the window is refused, not queued", [
+    ["window.start", "datetime", "Start", ""],
+    ["window.end", "datetime", "End", ""],
+    ["window.timezone", "text", "Timezone", "An IANA name, such as Europe/Paris."],
+  ]],
+  ["Scope", "a target missing here is a target the swarm refuses to touch", [
+    ["scope.domains", "domains", "Domains", "One per line. Subdomains are included."],
+    ["scope.cidrs", "lines", "Address ranges", "One per line, e.g. 10.0.0.0/24. A private range counts only if you name it."],
+    ["scope.ips", "lines", "Addresses", "One per line."],
+    ["scope.urls", "lines", "Applications", "One per line, with the scheme."],
+  ]],
+  ["Exclusions", "these beat scope: an excluded address inside an in-scope range stays excluded", [
+    ["exclusions.domains", "lines", "Domains", ""],
+    ["exclusions.cidrs", "lines", "Address ranges", ""],
+    ["exclusions.ips", "lines", "Addresses", ""],
+    ["exclusions.url_paths", "lines", "URL paths", "One per line, e.g. /payments."],
+  ]],
+  ["Rules of engagement", "enforced at execution time, not by convention", [
+    ["rules_of_engagement.intensity", "select:quiet,normal,aggressive", "Intensity", ""],
+    ["rules_of_engagement.max_requests_per_second", "number", "Requests per second", ""],
+    ["rules_of_engagement.max_concurrent_tools", "number", "Tools at once", ""],
+    ["rules_of_engagement.forbid_destructive", "guard", "Forbid destruction",
+     "Refused before scope is even consulted. Cannot be enabled."],
+    ["rules_of_engagement.forbid_denial_of_service", "guard", "Forbid denial of service", ""],
+    ["rules_of_engagement.forbid_data_modification", "guard", "Forbid data modification",
+     "No writes: no registrations, no feedback, no uploads."],
+    ["rules_of_engagement.forbid_persistence", "guard", "Forbid persistence", ""],
+    ["rules_of_engagement.forbid_social_engineering", "guard", "Forbid social engineering", ""],
+    ["rules_of_engagement.forbid_pivot_outside_scope", "guard", "Forbid pivoting out of scope", ""],
+    ["rules_of_engagement.exploitation.allowed", "switch", "Allow proof-of-concept exploitation",
+     "Off means findings are evidenced but never exercised."],
+    ["rules_of_engagement.exploitation.stop_at_proof", "switch", "Stop at proof",
+     "Demonstrate the weakness and go no further."],
+    ["rules_of_engagement.credential_testing.allowed", "switch", "Allow authentication testing",
+     "Off by default. On, it applies only to the test accounts you name below."],
+    ["rules_of_engagement.credential_testing.accounts", "lines", "Test accounts", "One per line."],
+    ["rules_of_engagement.red_team.enabled", "switch", "Enable the red team phases",
+     "Persistence, exfiltration and evasion. Each phase has its own switch in the YAML."],
+  ]],
+  ["What the agents may run", "the three execution tiers", [
+    ["rules_of_engagement.arbitrary_execution.structured_commands", "switch",
+     "Recipes", "An allowlisted binary with typed parameters. Fully scope-checked."],
+    ["rules_of_engagement.arbitrary_execution.pipelines", "switch",
+     "Pipelines", "One tool piped into a filter. Scope-checked; filters cannot execute."],
+    ["rules_of_engagement.arbitrary_execution.shell", "switch",
+     "Shell", "Not scope-enforced. Contained, logged, and needs your approval each time."],
+    ["rules_of_engagement.arbitrary_execution.scripts", "switch", "Scripts", "As above."],
+    ["rules_of_engagement.arbitrary_execution.extra_binaries", "lines",
+     "Extra binaries", "One per line. Beyond what the recipes already allow."],
+    ["rules_of_engagement.arbitrary_execution.approval_timeout_s", "number",
+     "Approval timeout (seconds)", "How long you have before an unapproved action is refused."],
+  ]],
+  ["Shortening what agents read", "optional, and it sends tool output off this machine", [
+    ["rules_of_engagement.output_summarisation.enabled", "switch", "Use a model to summarise",
+     "Off, nothing leaves. On, output goes to the endpoint below — never output holding credentials."],
+    ["rules_of_engagement.output_summarisation.endpoint", "text", "Endpoint", "An OpenAI-compatible /v1 URL. Must be https."],
+    ["rules_of_engagement.output_summarisation.model", "text", "Model", ""],
+    ["rules_of_engagement.output_summarisation.min_chars", "number", "Only above this many characters", ""],
+  ]],
+  ["Ceilings", "the campaign stops at the first one reached, and still reports what it has", [
+    ["budget.max_usd", "number", "Cost ($)", ""],
+    ["budget.max_tokens", "number", "Tokens", ""],
+    ["budget.max_wall_clock_minutes", "number", "Minutes", "0 runs until the work is done."],
+    ["budget.max_tool_calls_per_agent", "number", "Commands per agent",
+     "Tool runs cost no tokens, so the cost ceiling does not bound them. 0 lifts it."],
+  ]],
+];
+
+// A datetime-local input has no timezone, and the contract refuses a window
+// bound without one — the first save from the form failed on exactly that.
+function localWithOffset(value) {
+  if (!value) return "";
+  const minutes = -new Date(value).getTimezoneOffset();
+  const sign = minutes < 0 ? "-" : "+";
+  const abs = Math.abs(minutes);
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${value}:00${sign}${pad(Math.floor(abs / 60))}:${pad(abs % 60)}`;
+}
+
+const dig = (o, path) => path.split(".").reduce((v, k) => (v == null ? v : v[k]), o);
+function put(o, path, value) {
+  const keys = path.split(".");
+  const last = keys.pop();
+  let node = o;
+  for (const k of keys) { node[k] = node[k] ?? {}; node = node[k]; }
+  node[last] = value;
+}
+
+function buildForm(contract) {
+  const host = $("#form");
+  host.replaceChildren(...FIELDS.map(([title, blurb, fields], index) => {
+    const box = el("details", "fsec");
+    // Everything that decides what a campaign may do, and what it may spend,
+    // is open. A consultant was able to save a contract without ever seeing
+    // the ceilings, because the section holding them started collapsed.
+    box.open = true;
+    const head = el("summary", null, title);
+    head.append(Object.assign(el("small"), {textContent: blurb}));
+    const body = el("div", "fbody");
+    const grid = el("div", "fgrid");
+
+    for (const [path, kind, label, note] of fields) {
+      const value = dig(contract, path);
+      const wrap = el("div", "fld");
+      let input;
+
+      if (kind === "switch" || kind === "guard") {
+        const row = el("label", "sw" + (kind === "guard" ? " guard" : ""));
+        input = Object.assign(document.createElement("input"), {type: "checkbox"});
+        // A box labelled "Forbid destruction" is ticked when destruction is
+        // forbidden. Showing it the other way round displayed every guardrail
+        // as off while it was on, and ticking one to "turn it on" turned it
+        // off. The contract field is already named forbid_*, so the value and
+        // the box agree and no inversion belongs anywhere.
+        input.checked = !!value;
+        const text = el("div", "t");
+        text.append(Object.assign(el("b"), {textContent: label}));
+        if (note) text.append(Object.assign(el("span"), {textContent: note}));
+        row.append(input, text);
+        wrap.append(row);
+      } else {
+        wrap.append(el("label", null, label));
+        if (kind === "lines" || kind === "domains") {
+          input = document.createElement("textarea");
+          const list = Array.isArray(value) ? value : [];
+          input.value = list.map((v) => (v && v.name !== undefined ? v.name : v)).join("\n");
+        } else if (kind.startsWith("select:")) {
+          input = document.createElement("select");
+          for (const option of kind.slice(7).split(",")) {
+            input.append(Object.assign(el("option"), {value: option, textContent: option}));
+          }
+          input.value = value ?? "";
+        } else {
+          input = document.createElement("input");
+          input.type = kind === "number" ? "number" : kind === "date" ? "date" : "text";
+          input.value = kind === "datetime" && value
+            ? String(value).slice(0, 16).replace(" ", "T") : (value ?? "");
+          if (kind === "datetime") input.type = "datetime-local";
+          input.spellcheck = false;
+        }
+        wrap.append(input);
+        if (note) wrap.append(Object.assign(el("div", "note"), {textContent: note}));
+      }
+
+      input.dataset.path = path;
+      input.dataset.kind = kind;
+      (kind === "lines" || kind === "domains" ? body : grid).append(wrap);
+    }
+    if (grid.children.length) body.prepend(grid);
+    box.append(head, body);
+    return box;
+  }));
+}
+
+function readForm(base) {
+  const contract = JSON.parse(JSON.stringify(base || {}));
+  for (const input of $("#form").querySelectorAll("[data-path]")) {
+    const {path, kind} = input.dataset;
+    let value;
+    if (kind === "guard" || kind === "switch") value = input.checked;
+    else if (kind === "number")  value = Number(input.value || 0);
+    else if (kind === "domains") value = input.value.split("\n").map((s) => s.trim())
+                                            .filter(Boolean).map((name) => ({name}));
+    else if (kind === "lines")   value = input.value.split("\n").map((s) => s.trim())
+                                            .filter(Boolean);
+    else if (kind === "datetime") value = localWithOffset(input.value);
+    else                         value = input.value.trim();
+    put(contract, path, value);
+  }
+  return contract;
+}
+
 function contractPath() { return $("#path").value.trim() || "engagement.yaml"; }
 
 async function post(path, body) {
@@ -2076,29 +2313,52 @@ function say(text, bad) {
   hint.style.color = bad ? "var(--error-color)" : "var(--text-secondary)";
 }
 
+let loadedContract = null;      // what the form was built from
+
 $("#editBtn").onclick = async () => {
   const box = $("#editor");
   if (!box.hidden) { box.hidden = true; return; }
   try {
     const res = await fetch(
-      `/api/engagement/raw?path=${encodeURIComponent(contractPath())}`);
+      `/api/engagement/form?path=${encodeURIComponent(contractPath())}`);
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || `${res.status}`);
-    $("#yaml").value = data.text;
+    if (!data.ok) { say(data.reason, true); return; }
+    loadedContract = data.contract;
+    buildForm(loadedContract);
     box.hidden = false;
     say(data.exists
-      ? `${data.path} — editing it breaks its signature, so sign it again after saving.`
-      : `${data.path} does not exist yet; this is the starter. Fill it in and save.`);
+      ? `${data.path} — saving breaks its signature, so sign it again afterwards.`
+      : `${data.path} does not exist yet; these are the starting values. Fill them in and save.`);
   } catch (err) { say(String(err.message || err), true); }
 };
 
 $("#cancelEdit").onclick = () => { $("#editor").hidden = true; };
 
+// The YAML is still there for anything the form does not cover — the red team
+// phases one by one, for instance.
+$("#yamlToggle").onclick = async () => {
+  const box = $("#yamlBox"), form = $("#form"), btn = $("#yamlToggle");
+  if (box.hidden) {
+    try {
+      const res = await fetch(
+        `/api/engagement/raw?path=${encodeURIComponent(contractPath())}`);
+      const data = await res.json();
+      $("#yaml").value = data.text || "";
+    } catch { $("#yaml").value = ""; }
+    box.hidden = false; form.hidden = true; btn.textContent = "Back to the form";
+  } else {
+    box.hidden = true; form.hidden = false; btn.textContent = "Edit the YAML instead";
+  }
+};
+
 $("#saveBtn").onclick = async () => {
   const btn = $("#saveBtn");
   btn.disabled = true; btn.textContent = "Saving…";
   try {
-    const data = await post("save", {text: $("#yaml").value});
+    const data = $("#yamlBox").hidden
+      ? await post("form", {contract: readForm(loadedContract)})
+      : await post("save", {text: $("#yaml").value});
     say(data.reason, !data.ok);
     if (data.ok) $("#startBtn").disabled = true;   // unsigned again
   } catch (err) { say(String(err.message || err), true); }
