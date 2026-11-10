@@ -266,3 +266,24 @@ def test_a_link_between_two_recorded_facts_builds_a_path(kb) -> None:
     assert [[step["fact_key"] for step in path] for path in paths] == [
         ["finding/ftp-listing", "finding/ftp-bypass"]
     ]
+
+
+def _engagement():
+    return Engagement.model_validate(CONTRACT)
+
+
+def test_reading_works_after_the_campaign_closed_its_knowledge_base(tmp_path) -> None:
+    """A campaign closes its knowledge base when it ends, but the console's
+    session outlives the campaign: an operator who finished a run and opened
+    Findings got a 500 from every view, for a record sitting intact on disk."""
+    from swarmstrike.knowledge import KnowledgeBase
+
+    kb = KnowledgeBase(tmp_path / "k.sqlite")
+    kb.open_campaign("C", _engagement())
+    kb.add_asset("domain", "example.org", "recon")
+
+    kb.close()
+
+    assert len(kb.assets()) == 1
+    assert kb.findings() == []
+    kb.close()          # and closing an already-closed one is not an error

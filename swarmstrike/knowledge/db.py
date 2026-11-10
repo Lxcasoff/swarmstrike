@@ -102,15 +102,44 @@ class KnowledgeBase:
         # request. CPython's sqlite3 is built serialized, so sharing one
         # autocommit connection is safe; without this the reader raises and an
         # endpoint fails mid-campaign.
-        self.conn = sqlite3.connect(
-            self.path, isolation_level=None, check_same_thread=False
-        )
-        self.conn.row_factory = sqlite3.Row
-        self.conn.executescript(SCHEMA.read_text(encoding="utf-8"))
+        self._conn: sqlite3.Connection | None = None
+        self._open()
+        self._conn.executescript(SCHEMA.read_text(encoding="utf-8"))
         self._campaign_id: str | None = None
 
+    def _open(self) -> sqlite3.Connection:
+        # check_same_thread=False because the campaign writes from the event
+        # loop while the dashboard reads from whichever thread serves the
+        # request. CPython's sqlite3 is built serialized, so sharing one
+        # autocommit connection is safe; without this the reader raises and an
+        # endpoint fails mid-campaign.
+        self._conn = sqlite3.connect(
+            self.path, isolation_level=None, check_same_thread=False
+        )
+        self._conn.row_factory = sqlite3.Row
+        return self._conn
+
+    @property
+    def conn(self) -> sqlite3.Connection:
+        """The connection, reopened if something has closed it.
+
+        A campaign closes its knowledge base when it ends, but the console's
+        session outlives the campaign: an operator who finished a run and then
+        opened Findings got a 500 from every view, for a record sitting intact
+        on disk. Reading after close is a reasonable thing to do, so it works.
+        """
+        if self._conn is None:
+            return self._open()
+        try:
+            self._conn.execute("SELECT 1")
+        except sqlite3.ProgrammingError:
+            return self._open()
+        return self._conn
+
     def close(self) -> None:
-        self.conn.close()
+        if self._conn is not None:
+            self._conn.close()
+            self._conn = None
 
     def __enter__(self) -> KnowledgeBase:
         return self

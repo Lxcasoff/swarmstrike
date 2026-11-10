@@ -8,6 +8,25 @@
   No external resources. A penetration test can run on an isolated network,
   and a dashboard that needs a CDN to render is a dashboard that fails there.
 -->
+<script>
+  /* Where the editor's own assets come from. An engagement box with no
+     outbound internet can serve them locally and set this to that path, which
+     is the mitigation for the one thing embedding the editor costs us. */
+  window.EXCALIDRAW_ASSET_PATH =
+    window.SWARMSTRIKE_EXCALIDRAW_BASE ||
+    "https://esm.sh/@excalidraw/excalidraw@0.18.0/dist/prod/";
+</script>
+<script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@19.0.0",
+    "react/jsx-runtime": "https://esm.sh/react@19.0.0/jsx-runtime",
+    "react-dom": "https://esm.sh/react-dom@19.0.0",
+    "react-dom/client": "https://esm.sh/react-dom@19.0.0/client",
+    "@excalidraw/excalidraw": "https://esm.sh/@excalidraw/excalidraw@0.18.0/dist/prod/index.js?external=react,react-dom"
+  }
+}
+</script>
 <style>
 :root{
   /* Palette, surfaces and shadows follow the CyberStrike AI design system
@@ -494,6 +513,17 @@ input:focus{outline:none;border-color:var(--accent-color);box-shadow:0 0 0 3px v
 .row{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap}
 .row>*{flex:1;min-width:150px}
 .hint{font-size:.72rem;color:var(--ink-faint);line-height:1.55}
+
+/* ─── the canvas ───────────────────────────────────────────────────── */
+.canvas-sheet{position:fixed;inset:0;z-index:60;background:var(--bg-primary);
+  display:flex;flex-direction:column}
+.canvas-sheet[hidden]{display:none}
+.canvas-sheet>header{display:flex;align-items:flex-start;gap:16px;padding:12px 18px;
+  border-bottom:1px solid var(--border-color)}
+.canvas-sheet h3{margin:0;font-size:1rem}
+.canvas-sheet p{margin:3px 0 0;font-size:.76rem;color:var(--text-muted);max-width:70ch}
+#canvasHost{flex:1;min-height:0}
+#canvasHost .excalidraw{height:100%}
 
 /* ─── the map ──────────────────────────────────────────────────────── */
 .mapwrap{overflow:auto;padding:4px 10px 16px;max-height:calc(100vh - 230px)}
@@ -997,7 +1027,8 @@ pre{margin:0;padding:12px 14px;border-radius:8px;background:var(--bg-secondary);
           ground is not covered twice.
         </p>
         <div class="row" style="padding:0 17px 10px;gap:8px;justify-content:flex-start">
-          <button class="btn" id="excalBtn" style="flex:none">Open in Excalidraw</button>
+          <button class="btn" id="excalEditBtn" style="flex:none">Edit on the canvas</button>
+          <button class="btn" id="excalBtn" style="flex:none">Download the scene</button>
           <span class="hint" style="flex:1;align-self:center">
             Downloads the board as a scene. Drop it on
             <a href="https://excalidraw.com" target="_blank" rel="noreferrer">excalidraw.com</a>
@@ -1065,6 +1096,18 @@ pre{margin:0;padding:12px 14px;border-radius:8px;background:var(--bg-secondary);
 
     </div><!-- /.page-content -->
   </div><!-- /.main -->
+</div>
+
+<div class="canvas-sheet" id="canvasSheet" hidden>
+  <header>
+    <div style="min-width:0">
+      <h3>Map on a canvas</h3>
+      <p id="canvasNote">Move things where you want them. Nothing here changes
+        the campaign record — export a picture when you are done.</p>
+    </div>
+    <button class="btn" id="canvasClose" style="flex:none">Close</button>
+  </header>
+  <div id="canvasHost"></div>
 </div>
 
 <div class="scrim" id="scrim"></div>
@@ -1655,6 +1698,13 @@ $("#themeBtn").onclick = () =>
 
 $("#collapseBtn").onclick = () => $("#app").classList.toggle("rail");
 $("#excalBtn").onclick = downloadScene;
+$("#excalEditBtn").onclick = () => {
+  if (state.demo) {
+    say_map("The canvas needs a running campaign; the demonstration has no map to load.");
+    return;
+  }
+  openCanvas();
+};
 
 function setCount(view, n) {
   state.counts[view] = n;
@@ -1914,6 +1964,105 @@ function drawLegend() {
   items.push(dead);
   host.replaceChildren(...items);
 }
+
+/* ── the editor, loaded only when asked ─────────────────────────────
+   Embedding it costs the console the one property it had of loading nothing
+   from outside, so three things hold:
+
+   * It is fetched on the first click, not at startup. The console opens and
+     the map draws with no network at all.
+   * A failure to load says so and leaves the SVG map and the download where
+     they were. An engagement box with no outbound internet is normal, not an
+     error state.
+   * window.SWARMSTRIKE_EXCALIDRAW_BASE points the editor's assets somewhere
+     local, so an isolated deployment can serve them itself.
+
+   Nothing drawn here goes back into the campaign. The record is assembled
+   from evidence; this is a drawing of it. */
+let excalidraw = null;        // the loaded module, once
+let excalidrawApi = null;
+
+async function loadExcalidraw() {
+  if (excalidraw) return excalidraw;
+  const [lib, React, ReactDOM] = await Promise.all([
+    import("@excalidraw/excalidraw"),
+    import("react"),
+    import("react-dom/client"),
+  ]);
+  if (!document.getElementById("excalidrawCss")) {
+    const base = window.SWARMSTRIKE_EXCALIDRAW_BASE ||
+      "https://esm.sh/@excalidraw/excalidraw@0.18.0/dist/prod/";
+    document.head.append(Object.assign(document.createElement("link"), {
+      id: "excalidrawCss", rel: "stylesheet", href: base + "index.css",
+    }));
+  }
+  excalidraw = {lib, React: React.default || React, ReactDOM: ReactDOM.default || ReactDOM};
+  return excalidraw;
+}
+
+async function openCanvas() {
+  const sheet = $("#canvasSheet"), note = $("#canvasNote");
+  const original = note.textContent;
+  sheet.hidden = false;
+  note.textContent = "Loading the canvas…";
+
+  let scene;
+  try {
+    scene = state.demo
+      ? await (await fetch("/api/__none")).json()      // never reached; demo guards below
+      : await (await fetch(`/api/campaigns/${state.session}/map.excalidraw`)).json();
+  } catch {
+    note.textContent = "Could not read the map from the campaign.";
+    return;
+  }
+
+  let parts;
+  try {
+    parts = await loadExcalidraw();
+  } catch {
+    sheet.hidden = true;
+    say_map("The canvas could not be loaded — it is fetched from the network, and " +
+            "this machine has none. The map on the page and the scene download " +
+            "both still work; open the downloaded file in Excalidraw instead.");
+    return;
+  }
+
+  note.textContent = original;
+  const {lib, React, ReactDOM} = parts;
+  const host = $("#canvasHost");
+  host.replaceChildren();
+
+  ReactDOM.createRoot(host).render(
+    React.createElement(lib.Excalidraw, {
+      initialData: {
+        elements: scene.elements,
+        appState: {...scene.appState, theme:
+          document.documentElement.dataset.theme === "dark" ? "dark" : "light"},
+        scrollToContent: true,
+      },
+      excalidrawAPI: (api) => { excalidrawApi = api; },
+    })
+  );
+}
+
+function say_map(message) {
+  const host = $("#mapLegend");
+  if (!host) return;
+  let line = $("#mapWarn");
+  if (!line) {
+    line = el("div", "hint");
+    line.id = "mapWarn";
+    line.style.cssText = "padding:0 17px 10px;color:var(--warning-color)";
+    host.before(line);
+  }
+  line.textContent = message;
+}
+
+$("#canvasClose").onclick = () => {
+  $("#canvasSheet").hidden = true;
+  $("#canvasHost").replaceChildren();     // let the editor go
+  excalidrawApi = null;
+};
 
 // A scene file rather than the editor: the console carries no framework and
 // loads nothing from a CDN, and the part of Excalidraw worth having is the
