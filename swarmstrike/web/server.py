@@ -656,6 +656,75 @@ def create_app() -> FastAPI:
             "edges": kb.fact_edges(),
         }
 
+    @app.get("/api/campaigns/{session_id}/map")
+    async def campaign_map(session_id: str) -> dict[str, Any]:
+        """The campaign as a graph: what was found, and what it led to.
+
+        The attack-paths view lists chains that are already complete. This is
+        the whole board while it is still being built — an asset, the facts
+        established about it, the findings those became — so an operator can
+        watch the work join up rather than read it as a list afterwards.
+        """
+        kb = dashboard.get(session_id).campaign.kb
+
+        nodes: list[dict[str, Any]] = []
+        edges: list[dict[str, str]] = []
+
+        for asset in kb.assets():
+            nodes.append({
+                "id": f"asset:{asset['value']}",
+                "type": "asset",
+                "label": asset["value"],
+                "detail": asset.get("kind", ""),
+                "agent": asset.get("discovered_by", ""),
+            })
+
+        for fact in kb.list_facts(include_deprecated=False):
+            nodes.append({
+                "id": f"fact:{fact['fact_key']}",
+                "type": "fact",
+                "label": fact["fact_key"],
+                "detail": fact.get("summary", ""),
+                "agent": fact.get("agent", ""),
+                "negative": bool(fact.get("negative")),
+                "confidence": fact.get("confidence", ""),
+                # What this amounted to, which is what the map colours by:
+                # credentials obtained read differently from surface mapped.
+                "category": fact.get("category", "note"),
+            })
+            # A fact names the asset it is about in its key's slug often
+            # enough to be useful, but the reliable link is the finding it
+            # was recorded against.
+            related = fact.get("related_finding_id")
+            if related:
+                edges.append({"from": f"fact:{fact['fact_key']}",
+                              "to": f"finding:{related}", "kind": "evidences"})
+
+        for finding in kb.findings():
+            nodes.append({
+                "id": f"finding:{finding['id']}",
+                "type": "finding",
+                "label": finding["id"],
+                "detail": finding.get("title", ""),
+                "agent": finding.get("discovered_by", ""),
+                "severity": (finding.get("severity") or "unrated").lower(),
+                "status": finding.get("status", ""),
+            })
+            asset = finding.get("asset")
+            if asset:
+                edges.append({"from": f"asset:{asset}",
+                              "to": f"finding:{finding['id']}", "kind": "on"})
+
+        known = {node["id"] for node in nodes}
+        for edge in kb.fact_edges():
+            source, target = f"fact:{edge['src_key']}", f"fact:{edge['dst_key']}"
+            if source in known and target in known:
+                edges.append({"from": source, "to": target,
+                              "kind": edge.get("relation", "relates")})
+
+        return {"nodes": nodes, "edges": [e for e in edges
+                                          if e["from"] in known and e["to"] in known]}
+
     # ------------------------------------------------------------------
     #  Roster
     # ------------------------------------------------------------------

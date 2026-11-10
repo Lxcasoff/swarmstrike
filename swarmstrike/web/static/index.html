@@ -495,6 +495,72 @@ input:focus{outline:none;border-color:var(--accent-color);box-shadow:0 0 0 3px v
 .row>*{flex:1;min-width:150px}
 .hint{font-size:.72rem;color:var(--ink-faint);line-height:1.55}
 
+/* ─── the map ──────────────────────────────────────────────────────── */
+.mapwrap{overflow:auto;padding:4px 10px 16px;max-height:calc(100vh - 230px)}
+#mapSvg{display:block;min-width:100%}
+.mn{cursor:pointer}
+.mn rect{rx:7;stroke-width:1.5;transition:filter .15s}
+.mn:hover rect{filter:brightness(1.12)}
+.mn text{font-family:var(--mono);font-size:10.5px;pointer-events:none;fill:var(--ink)}
+.mn text.sub{font-size:9px;fill:var(--text-muted)}
+.mn.asset  rect{fill:var(--bg-tertiary);stroke:var(--text-muted)}
+/* A fact is coloured by what it amounted to, not by who recorded it:
+   credentials in hand look nothing like surface mapped, and that difference
+   is the first thing worth seeing on a board. */
+.mn.fact rect{fill:var(--cat-bg,var(--sev-low-bg));stroke:var(--cat-fg,var(--accent-color))}
+.mn.fact.cat-auth     {--cat-bg:#dc354526; --cat-fg:#dc3545}
+.mn.fact.cat-access   {--cat-bg:#fd7e1426; --cat-fg:#fd7e14}
+.mn.fact.cat-exploit,
+.mn.fact.cat-poc      {--cat-bg:#ffc10726; --cat-fg:#b26a00}
+.mn.fact.cat-chain    {--cat-bg:#7c3aed26; --cat-fg:#7c3aed}
+.mn.fact.cat-business {--cat-bg:#0d948826; --cat-fg:#0d9488}
+.mn.fact.cat-detection{--cat-bg:#64748b26; --cat-fg:#64748b}
+.mn.fact.cat-target,
+.mn.fact.cat-infra    {--cat-bg:#0066ff1f; --cat-fg:#0066ff}
+html[data-theme="dark"] .mn.fact.cat-auth     {--cat-bg:#f8717130; --cat-fg:#f87171}
+html[data-theme="dark"] .mn.fact.cat-access   {--cat-bg:#fb923c30; --cat-fg:#fb923c}
+html[data-theme="dark"] .mn.fact.cat-exploit,
+html[data-theme="dark"] .mn.fact.cat-poc      {--cat-bg:#fbbf2430; --cat-fg:#fbbf24}
+html[data-theme="dark"] .mn.fact.cat-chain    {--cat-bg:#a78bfa30; --cat-fg:#a78bfa}
+html[data-theme="dark"] .mn.fact.cat-business {--cat-bg:#2dd4bf30; --cat-fg:#2dd4bf}
+html[data-theme="dark"] .mn.fact.cat-target,
+html[data-theme="dark"] .mn.fact.cat-infra    {--cat-bg:#60a5fa26; --cat-fg:#60a5fa}
+/* Credentials in hand are the one thing that should catch an eye crossing
+   the board, so they keep a steady pulse while a campaign is running. */
+.mn.fact.cat-auth rect{animation:held 2.6s ease-in-out infinite}
+@keyframes held{0%,100%{filter:none}50%{filter:drop-shadow(0 0 5px var(--cat-fg))}}
+.mn.fact.dead rect{stroke-dasharray:4 3;stroke:var(--text-muted);fill:transparent;
+  animation:none}
+.mn.finding rect{fill:var(--sev-med-bg);stroke:var(--warning-color)}
+.mn.finding.high rect,.mn.finding.critical rect{fill:var(--sev-crit-bg);stroke:var(--error-color)}
+.mn.finding.low rect{fill:var(--sev-low-bg);stroke:var(--accent-color)}
+.mn.fresh rect{animation:landed .9s ease-out}
+@keyframes landed{0%{opacity:0;transform:translateX(-10px)}100%{opacity:1;transform:none}}
+.me{fill:none;stroke:var(--border-color);stroke-width:1.4}
+.me.enables{stroke:var(--error-color);stroke-width:2.2}
+.mcol{font-family:var(--mono);font-size:9.5px;fill:var(--text-muted);
+  letter-spacing:.1em;text-transform:uppercase}
+.mempty{padding:40px 18px;text-align:center;color:var(--text-muted);font-size:.82rem}
+.legend{display:flex;flex-wrap:wrap;gap:7px 14px;padding:0 17px 12px;font-size:.72rem;
+  color:var(--text-secondary)}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;
+  border:1.5px solid currentColor;vertical-align:-1px}
+.legend .cat-auth     {--cat-bg:#dc354526; --cat-fg:#dc3545}
+.legend .cat-access   {--cat-bg:#fd7e1426; --cat-fg:#fd7e14}
+.legend .cat-exploit  {--cat-bg:#ffc10726; --cat-fg:#b26a00}
+.legend .cat-chain    {--cat-bg:#7c3aed26; --cat-fg:#7c3aed}
+.legend .cat-business {--cat-bg:#0d948826; --cat-fg:#0d9488}
+.legend .cat-target   {--cat-bg:#0066ff1f; --cat-fg:#0066ff}
+.legend .cat-detection{--cat-bg:#64748b26; --cat-fg:#64748b}
+html[data-theme="dark"] .legend .cat-auth     {--cat-bg:#f8717130; --cat-fg:#f87171}
+html[data-theme="dark"] .legend .cat-access   {--cat-bg:#fb923c30; --cat-fg:#fb923c}
+html[data-theme="dark"] .legend .cat-exploit  {--cat-bg:#fbbf2430; --cat-fg:#fbbf24}
+html[data-theme="dark"] .legend .cat-chain    {--cat-bg:#a78bfa30; --cat-fg:#a78bfa}
+html[data-theme="dark"] .legend .cat-business {--cat-bg:#2dd4bf30; --cat-fg:#2dd4bf}
+html[data-theme="dark"] .legend .cat-target   {--cat-bg:#60a5fa26; --cat-fg:#60a5fa}
+.legend span{white-space:nowrap}
+.legend .dash i{border-style:dashed;background:transparent !important}
+
 /* ─── contract form ────────────────────────────────────────────────── */
 .fsec{border:1px solid var(--border-color);border-radius:10px;margin:0 0 12px;
   background:var(--bg-primary);overflow:hidden}
@@ -918,6 +984,20 @@ pre{margin:0;padding:12px 14px;border-radius:8px;background:var(--bg-secondary);
           <span class="stat" id="factStat"></span>
         </div>
         <div class="facts" id="factList"></div>
+      </div>
+    </section>
+
+    <section class="view" data-view="map" hidden>
+      <div class="card">
+        <h2>Map <span class="count" id="mapCount"></span></h2>
+        <p class="hint" style="padding:0 17px 10px;margin:0">
+          What was found, and what it led to, as it happens. An asset on the
+          left, what was established about it in the middle, what that became
+          on the right. A dashed outline is a dead end — recorded so the same
+          ground is not covered twice.
+        </p>
+        <div class="legend" id="mapLegend"></div>
+        <div class="mapwrap"><svg id="mapSvg"></svg></div>
       </div>
     </section>
 
@@ -1503,6 +1583,7 @@ const VIEWS = [
   ["warroom",  "War room",       null,                 "\u25C9"],
   ["findings", "Findings",       () => refreshFindings(), "\u25B2"],
   ["facts",    "Facts",          () => loadFacts(),    "\u25A6"],
+  ["map",      "Map",            () => loadMap(),      "\u25A3"],
   ["paths",    "Attack paths",   () => loadPaths(),    "\u2387"],
   ["agents",   "Agents",         () => loadAgents(),   "\u263B"],
   ["tools",    "Tools",          () => loadTools(),    "\u2692"],
@@ -1684,6 +1765,153 @@ async function openFact(key) {
 }
 
 /* ── attack paths ───────────────────────────────────────────────────── */
+/* ── the map ────────────────────────────────────────────────────────
+   Three columns, left to right: an asset, what was established about it,
+   what that became. Laid out rather than simulated — a force layout moves
+   everything whenever one node arrives, and this view is watched while the
+   work is happening, so a node that lands must not shift the ones already
+   read. Nodes keep their place; new ones take the next free row. */
+const MAP_COLS = [
+  ["asset",   "found"],
+  ["fact",    "established"],
+  ["finding", "confirmed"],
+];
+const NODE_W = 196, NODE_H = 40, GAP_Y = 13, GAP_X = 92, PAD = 26;
+const mapSeen = new Set();          // ids already drawn, so arrivals can animate
+
+function truncate(text, max) {
+  text = String(text || "");
+  return text.length > max ? text.slice(0, max - 1) + "…" : text;
+}
+
+function drawMap(graph) {
+  const svg = $("#mapSvg");
+  const nodes = graph.nodes || [];
+  setCount("map", nodes.length);
+
+  if (!nodes.length) {
+    svg.replaceChildren();
+    svg.setAttribute("height", 0);
+    return;
+  }
+
+  // Place every node: a column by type, a row by arrival order within it.
+  const placed = new Map();
+  const rows = MAP_COLS.map(() => 0);
+  for (const node of nodes) {
+    const column = MAP_COLS.findIndex(([type]) => type === node.type);
+    if (column < 0) continue;
+    placed.set(node.id, {
+      node,
+      x: PAD + column * (NODE_W + GAP_X),
+      y: PAD + 22 + rows[column]++ * (NODE_H + GAP_Y),
+    });
+  }
+
+  const height = PAD * 2 + 22 + Math.max(...rows, 1) * (NODE_H + GAP_Y);
+  const width = PAD * 2 + MAP_COLS.length * NODE_W + (MAP_COLS.length - 1) * GAP_X;
+  svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+  svg.setAttribute("width", width);
+  svg.setAttribute("height", height);
+
+  const ns = "http://www.w3.org/2000/svg";
+  const make = (tag, attrs = {}) => {
+    const n = document.createElementNS(ns, tag);
+    for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
+    return n;
+  };
+
+  const children = [];
+
+  MAP_COLS.forEach(([, label], index) => {
+    const head = make("text", {
+      class: "mcol", x: PAD + index * (NODE_W + GAP_X), y: PAD - 4,
+    });
+    head.textContent = label;
+    children.push(head);
+  });
+
+  // Edges first, so they sit behind the boxes.
+  for (const edge of graph.edges || []) {
+    const from = placed.get(edge.from), to = placed.get(edge.to);
+    if (!from || !to) continue;
+    const x1 = from.x + NODE_W, y1 = from.y + NODE_H / 2;
+    const x2 = to.x, y2 = to.y + NODE_H / 2;
+    const mid = (x1 + x2) / 2;
+    children.push(make("path", {
+      class: `me ${edge.kind === "enables" ? "enables" : ""}`,
+      d: `M${x1},${y1} C${mid},${y1} ${mid},${y2} ${x2},${y2}`,
+    }));
+  }
+
+  for (const {node, x, y} of placed.values()) {
+    const classes = ["mn", node.type];
+    if (node.type === "finding") classes.push(node.severity || "unrated");
+    if (node.type === "fact") classes.push("cat-" + (node.category || "note"));
+    if (node.negative) classes.push("dead");
+    if (!mapSeen.has(node.id)) { classes.push("fresh"); mapSeen.add(node.id); }
+
+    const group = make("g", {class: classes.join(" "), transform: `translate(${x},${y})`});
+    group.append(make("rect", {width: NODE_W, height: NODE_H}));
+
+    const title = make("text", {x: 10, y: 17});
+    title.textContent = truncate(node.label, 26);
+    const sub = make("text", {class: "sub", x: 10, y: 30});
+    sub.textContent = truncate(node.detail || node.agent, 30);
+    group.append(title, sub);
+
+    const tip = make("title");
+    tip.textContent = `${node.label}\n${node.detail || ""}` +
+                      (node.agent ? `\nfound by ${node.agent}` : "");
+    group.append(tip);
+
+    if (node.type === "finding") {
+      group.addEventListener("click", () => openFinding(node.label));
+    } else if (node.type === "fact") {
+      group.addEventListener("click", () => openFact(node.label.replace(/^fact:/, "")));
+    }
+    children.push(group);
+  }
+
+  svg.replaceChildren(...children);
+}
+
+// Named by what an operator would call them, not by the category slug.
+const MAP_LEGEND = [
+  ["auth",      "credentials in hand"],
+  ["access",    "access gained"],
+  ["exploit",   "weakness proven"],
+  ["chain",     "steps joined up"],
+  ["business",  "business impact"],
+  ["target",    "surface mapped"],
+  ["detection", "noticed by defences"],
+];
+
+function drawLegend() {
+  const host = $("#mapLegend");
+  if (!host || host.childElementCount) return;      // drawn once
+  const items = MAP_LEGEND.map(([cat, label]) => {
+    const span = el("span", "cat-" + cat);
+    const swatch = document.createElement("i");
+    // The swatch borrows the node colours, so the two cannot drift apart.
+    swatch.style.color = `var(--cat-fg, var(--accent-color))`;
+    swatch.style.background = `var(--cat-bg, var(--sev-low-bg))`;
+    span.append(swatch, document.createTextNode(label));
+    return span;
+  });
+  const dead = el("span", "dash");
+  dead.append(document.createElement("i"), document.createTextNode("dead end"));
+  items.push(dead);
+  host.replaceChildren(...items);
+}
+
+async function loadMap() {
+  drawLegend();
+  if (state.demo) { drawMap(DEMO_MAP); return; }
+  try { drawMap(await api("/map")); }
+  catch { drawMap({nodes: [], edges: []}); }
+}
+
 async function loadPaths() {
   let data;
   if (state.demo) data = {paths: DEMO_PATHS};
@@ -1980,6 +2208,15 @@ function connect(sessionId) {
 
     pushEvent(ev);
     applyToAgent(ev.kind, ev.data || {});
+
+    // The map is watched while the work is happening, so a discovery has to
+    // land on it rather than wait for the operator to leave the view and
+    // come back. Only while it is the view being shown: redrawing a graph
+    // nobody is looking at costs a request per event.
+    if (state.view === "map" &&
+        ["agent.asset", "agent.fact", "agent.finding", "ruling"].includes(ev.kind)) {
+      loadMap();
+    }
 
     if (ev.kind === "round.start") {
       state.round = {n: ev.data.round, of: ev.data.of};
@@ -2517,6 +2754,32 @@ const DEMO_FACTS = [
    agent:"detection", summary:"the full port scan at 14:12 produced no alert in the client's SIEM",
    body:"Correlated against the audit log timestamp. A loud action that nobody saw."},
 ];
+
+/* Enough of a board to show the shape of the thing with no backend. */
+const DEMO_MAP = {
+  nodes: [
+    {id:"asset:admin.example.pf", type:"asset", label:"admin.example.pf",
+     detail:"domain", agent:"recon"},
+    {id:"asset:203.0.113.10", type:"asset", label:"203.0.113.10",
+     detail:"host", agent:"recon"},
+    {id:"fact:target/admin-subdomain", type:"fact", label:"target/admin-subdomain",
+     detail:"not behind the CDN", agent:"recon", confidence:"confirmed"},
+    {id:"fact:finding/upload", type:"fact", label:"finding/upload",
+     detail:"unrestricted upload at /avatar", agent:"web", confidence:"confirmed"},
+    {id:"fact:note/no-sqli", type:"fact", label:"note/no-sqli",
+     detail:"login is parameterised", agent:"api", negative:true},
+    {id:"finding:F-001", type:"finding", label:"F-001",
+     detail:"Unrestricted file upload", agent:"web", severity:"high", status:"confirmed"},
+    {id:"finding:F-002", type:"finding", label:"F-002",
+     detail:"Directory listing on /backup", agent:"web", severity:"medium", status:"confirmed"},
+  ],
+  edges: [
+    {from:"asset:admin.example.pf", to:"finding:F-001", kind:"on"},
+    {from:"asset:203.0.113.10", to:"finding:F-002", kind:"on"},
+    {from:"fact:target/admin-subdomain", to:"fact:finding/upload", kind:"enables"},
+    {from:"fact:finding/upload", to:"finding:F-001", kind:"evidences"},
+  ],
+};
 
 const DEMO_PATHS = [
   {length:5, steps:[
