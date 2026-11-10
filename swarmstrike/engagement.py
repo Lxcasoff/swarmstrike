@@ -326,6 +326,17 @@ class Budget(BaseModel):
     # meaningful rather than mid-thought.
     max_wall_clock_minutes: int = 0
 
+    # A ceiling on how many commands one agent may issue in a campaign. The
+    # money ceiling does not bound this well: tool runs cost no tokens, so an
+    # agent can grind through a hundred scans of empty address space without
+    # the budget moving, and a lab campaign did exactly that. Zero lifts it.
+    #
+    # It bounds a resource, not a privilege. The agent name it counts against
+    # is the one the tool call reports, which is not something the tool server
+    # can verify, so it would not hold against an agent trying to evade it —
+    # scope, the forbidden list and the approval gate are what do that.
+    max_tool_calls_per_agent: int = 150
+
 
 class EmergencyContact(BaseModel):
     name: str = ""

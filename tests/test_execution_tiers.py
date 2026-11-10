@@ -279,3 +279,54 @@ def test_the_audit_chain_still_verifies_after_redaction(tmp_path: Path) -> None:
     intact, reason, count = executor.audit.verify()
     assert intact, reason
     assert count >= 1
+
+
+# ---------------------------------------------------------------------------
+#  A ceiling the money cannot provide
+# ---------------------------------------------------------------------------
+def test_an_agent_is_stopped_after_its_tool_call_ceiling() -> None:
+    """Tool runs cost no tokens, so the spend ceiling does not bound them: a
+    lab campaign had recon grind through scans of empty address space while
+    the cost sat still. This is the ceiling that bounds it."""
+    from swarmstrike.tools.executor import ExecutionRefused, ToolExecutor
+
+    executor = ToolExecutor.__new__(ToolExecutor)
+    executor.max_tool_calls_per_agent = 3
+    executor._calls_by_agent = {}
+    executor._emit = lambda *args, **kwargs: None
+
+    for _ in range(3):
+        executor._count_tool_call("recon")
+
+    with pytest.raises(ExecutionRefused, match="ceiling of 3"):
+        executor._count_tool_call("recon")
+
+
+def test_the_ceiling_is_per_agent_not_per_campaign() -> None:
+    from swarmstrike.tools.executor import ExecutionRefused, ToolExecutor
+
+    executor = ToolExecutor.__new__(ToolExecutor)
+    executor.max_tool_calls_per_agent = 2
+    executor._calls_by_agent = {}
+    executor._emit = lambda *args, **kwargs: None
+
+    executor._count_tool_call("recon")
+    executor._count_tool_call("recon")
+    # web has its own allowance and is unaffected by recon exhausting its own.
+    executor._count_tool_call("web")
+    with pytest.raises(ExecutionRefused):
+        executor._count_tool_call("recon")
+    executor._count_tool_call("web")
+
+
+def test_a_ceiling_of_zero_lifts_it() -> None:
+    from swarmstrike.tools.executor import ToolExecutor
+
+    executor = ToolExecutor.__new__(ToolExecutor)
+    executor.max_tool_calls_per_agent = 0
+    executor._calls_by_agent = {}
+    executor._emit = lambda *args, **kwargs: None
+
+    for _ in range(500):
+        executor._count_tool_call("web")
+    assert executor._calls_by_agent == {}

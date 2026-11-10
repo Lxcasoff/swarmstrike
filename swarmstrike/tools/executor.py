@@ -200,6 +200,11 @@ class ToolExecutor:
     # what the deterministic compressor could not.
     summariser: Any = None
 
+    # How many commands one agent may issue before it is told to wrap up.
+    # Zero lifts the ceiling.
+    max_tool_calls_per_agent: int = 0
+    _calls_by_agent: dict[str, int] = field(default_factory=dict)
+
     # Where a command that cannot be statically checked goes to be decided.
     # Deny-by-default: an unattended campaign does not approve its own shell.
     approval: ApprovalGate = field(default_factory=AutoDenyGate)
@@ -253,6 +258,7 @@ class ToolExecutor:
         down — a recipe supplies them from its sensitive parameters.
         """
         self.killswitch.check()
+        self._count_tool_call(agent)
 
         decision = self.guard.check_command(argv)
         if not decision.allowed:
@@ -708,6 +714,28 @@ class ToolExecutor:
         except OSError:
             return False
         return any(marker in cgroup for marker in ("docker", "containerd", "kubepods"))
+
+    def _count_tool_call(self, agent: str) -> None:
+        """Refuse an agent that has issued more commands than its ceiling.
+
+        Tool runs cost no tokens, so the money ceiling does not bound them: a
+        specialist can grind through a hundred scans of empty address space
+        while the spend sits still. This is the ceiling that does.
+        """
+        if not self.max_tool_calls_per_agent:
+            return
+        self._calls_by_agent[agent] = self._calls_by_agent.get(agent, 0) + 1
+        used = self._calls_by_agent[agent]
+        if used <= self.max_tool_calls_per_agent:
+            return
+        self._emit("agent.exhausted", agent=agent, calls=used - 1,
+                   limit=self.max_tool_calls_per_agent)
+        raise ExecutionRefused(
+            f"{agent} has issued {used - 1} commands, which is this engagement's "
+            f"ceiling of {self.max_tool_calls_per_agent} for one agent. Record what "
+            f"you have found and what you ruled out, then finish. Anything still "
+            f"worth doing belongs in a fact for whoever picks it up next."
+        )
 
     async def _maybe_summarise(self, text: str, command: str, output_path: Path) -> str:
         """Hand the compressed output to a model, where the contract allows it.

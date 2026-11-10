@@ -368,19 +368,49 @@ class StateSpaceSearch:
             "than a null result forgotten."
         )
 
-        detail = ""
-        try:
-            async for message in query(prompt=brief, options=options):
-                if isinstance(message, ResultMessage):
-                    self.budget.record_result(f"{action.agent}:{message.session_id}", message)
-                    detail = (message.result or "").strip()[:4000]
-        except Halted:
-            raise
-        except Exception as exc:  # noqa: BLE001 — one specialist failing is not the campaign failing
-            detail = f"{type(exc).__name__}: {exc}"
+        async def ask(text: str) -> str:
+            answer = ""
+            try:
+                async for message in query(prompt=text, options=options):
+                    if isinstance(message, ResultMessage):
+                        self.budget.record_result(
+                            f"{action.agent}:{message.session_id}", message)
+                        answer = (message.result or "").strip()[:4000]
+            except Halted:
+                raise
+            except Exception as exc:  # noqa: BLE001 — one specialist failing is not the campaign failing
+                answer = f"{type(exc).__name__}: {exc}"
+            return answer
+
+        detail = await ask(brief)
 
         after_facts = len(self.kb.list_facts(include_deprecated=True))
         after_findings = len(self.kb.findings())
+
+        # A dispatch that wrote nothing down is a dispatch nobody can learn
+        # from: the lead sees an empty result, has no dead end to avoid, and
+        # may well assign the same ground again. Rather than let that stand,
+        # ask once for the one thing that is always available — an account of
+        # what was ruled out. One retry, because a specialist that has nothing
+        # to say the second time has nothing to say.
+        if after_facts == before_facts and after_findings == before_findings:
+            self._emit("action.barren", agent=action.agent, task_key=key)
+            detail = await ask(
+                "You finished that task without recording a single fact or "
+                "finding, so nothing you learned is on the board and the lead "
+                "cannot see what you covered.\n\n"
+                "Do one of these now, and nothing else:\n"
+                "- If you ruled anything out, record it with record_fact as a "
+                "negative fact. A dead end that is written down is worth as "
+                "much as a finding: it stops this ground being assigned again.\n"
+                "- If a tool you needed was missing or refused, record that as "
+                "a fact so the gap is visible in the report.\n"
+                "- If there was genuinely nothing to do on this surface, say so "
+                "in one sentence and stop.\n\n"
+                "Do not start new work and do not run more tools."
+            )
+            after_facts = len(self.kb.list_facts(include_deprecated=True))
+            after_findings = len(self.kb.findings())
         self.kb.release_claim(key, detail[:500])
         self.kb.release_agent_claims(action.agent, opened_at)
 

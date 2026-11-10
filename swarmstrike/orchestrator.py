@@ -271,6 +271,7 @@ class Campaign:
                 | set(self.engagement.rules_of_engagement.arbitrary_execution.extra_binaries)
             ),
             summariser=self._summariser(),
+            max_tool_calls_per_agent=self.engagement.budget.max_tool_calls_per_agent,
         )
 
         self.context = build_context(self.engagement)
