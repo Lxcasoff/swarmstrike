@@ -233,3 +233,93 @@ def test_the_summary_says_nothing_about_chains_when_there_are_none(rendered) -> 
 )
 def test_the_priority_line_breaks_at_a_real_sentence_end(label, text, expected) -> None:
     assert _first_sentence(text) == expected, label
+
+
+# ---------------------------------------------------------------------------
+#  The map as an Excalidraw scene
+# ---------------------------------------------------------------------------
+def _graph():
+    return {
+        "nodes": [
+            {"id": "asset:a", "type": "asset", "label": "admin.example.pf",
+             "detail": "domain"},
+            {"id": "fact:auth", "type": "fact", "label": "auth/creds",
+             "detail": "admin password recovered", "category": "auth"},
+            {"id": "fact:dead", "type": "fact", "label": "note/no-sqli",
+             "detail": "parameterised", "category": "note", "negative": True},
+            {"id": "finding:F-001", "type": "finding", "label": "F-001",
+             "detail": "Unrestricted upload", "severity": "high"},
+        ],
+        "edges": [
+            {"from": "asset:a", "to": "finding:F-001", "kind": "on"},
+            {"from": "fact:auth", "to": "finding:F-001", "kind": "enables"},
+        ],
+    }
+
+
+def test_the_scene_is_a_file_excalidraw_will_open() -> None:
+    from swarmstrike.report.excalidraw import scene
+
+    result = scene(_graph(), title="Commune de Faa'a")
+    assert result["type"] == "excalidraw"
+    assert result["version"] == 2
+    assert result["files"] == {}
+    assert "viewBackgroundColor" in result["appState"]
+
+    required = {"id", "x", "y", "width", "height", "angle", "strokeColor",
+                "backgroundColor", "seed", "version", "versionNonce", "isDeleted"}
+    for element in result["elements"]:
+        assert required <= set(element), f"{element['type']} is missing fields"
+
+
+def test_every_node_becomes_a_box_with_its_text_inside() -> None:
+    from swarmstrike.report.excalidraw import scene
+
+    elements = scene(_graph())["elements"]
+    boxes = [e for e in elements if e["type"] == "rectangle"]
+    assert len(boxes) == 4
+
+    for box in boxes:
+        bound = {b["type"] for b in box["boundElements"] or []}
+        assert "text" in bound, "a box with no label is a box nobody can read"
+    texts = {e["containerId"] for e in elements
+             if e["type"] == "text" and e.get("containerId")}
+    assert texts == {b["id"] for b in boxes}
+
+
+def test_an_arrow_is_bound_at_both_ends_so_it_follows_what_it_joins() -> None:
+    """An unbound arrow stays where it was drawn when the operator moves a box,
+    which is the whole reason for handing them an editable scene."""
+    from swarmstrike.report.excalidraw import scene
+
+    arrows = [e for e in scene(_graph())["elements"] if e["type"] == "arrow"]
+    assert len(arrows) == 2
+    for arrow in arrows:
+        assert arrow["startBinding"] and arrow["endBinding"]
+        assert arrow["endArrowhead"] == "arrow"
+
+
+def test_colour_and_outline_carry_what_a_node_amounted_to() -> None:
+    from swarmstrike.report.excalidraw import ASSET_COLOUR, scene
+
+    by_text = {}
+    for element in scene(_graph())["elements"]:
+        if element["type"] == "text" and element.get("containerId"):
+            by_text[element["text"].split("\n")[0]] = element["containerId"]
+    boxes = {e["id"]: e for e in scene(_graph())["elements"] if e["type"] == "rectangle"}
+
+    # Rebuilt, so look them up by position instead: the first box is the asset.
+    elements = scene(_graph())["elements"]
+    rects = [e for e in elements if e["type"] == "rectangle"]
+    assert rects[0]["strokeColor"] == ASSET_COLOUR[0]
+    # The dead end is the one drawn dashed, whatever its colour.
+    assert any(r["strokeStyle"] == "dashed" for r in rects)
+    assert sum(1 for r in rects if r["strokeStyle"] == "dashed") == 1
+
+
+def test_an_empty_campaign_still_produces_a_valid_scene() -> None:
+    from swarmstrike.report.excalidraw import scene
+
+    result = scene({"nodes": [], "edges": []})
+    assert result["type"] == "excalidraw"
+    assert all(e["type"] == "text" for e in result["elements"])   # column labels

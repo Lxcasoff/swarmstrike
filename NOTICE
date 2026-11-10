@@ -41,6 +41,16 @@ What was derived
   The token names in `swarmstrike/web/static/index.html` are theirs, so the
   correspondence is legible rather than laundered.
 
+Excalidraw
+----------
+
+The campaign map can be exported as a `.excalidraw` scene, written against the
+file format of Excalidraw (https://github.com/excalidraw/excalidraw), which is
+licensed under the MIT License. No Excalidraw code is used or distributed
+here: the format is generated, and the editing happens in the operator's own
+copy of the tool.
+
+
 What was changed
 ----------------
 

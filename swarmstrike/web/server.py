@@ -725,6 +725,25 @@ def create_app() -> FastAPI:
         return {"nodes": nodes, "edges": [e for e in edges
                                           if e["from"] in known and e["to"] in known]}
 
+    @app.get("/api/campaigns/{session_id}/map.excalidraw")
+    async def campaign_map_excalidraw(session_id: str) -> Any:
+        """The map as a scene to open, rearrange and annotate in Excalidraw.
+
+        The console draws the board so it can be watched; this hands it to a
+        tool built for moving things around and adding what the campaign had
+        no way to know. The editing belongs there, not here.
+        """
+        from ..report.excalidraw import scene
+
+        session = dashboard.get(session_id)
+        graph = await campaign_map(session_id)
+        title = session.campaign.engagement.engagement.client
+        return JSONResponse(
+            scene(graph, title=title),
+            headers={"content-disposition":
+                     f'attachment; filename="{session.campaign.campaign_id}.excalidraw"'},
+        )
+
     # ------------------------------------------------------------------
     #  Roster
     # ------------------------------------------------------------------

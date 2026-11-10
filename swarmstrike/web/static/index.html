@@ -996,6 +996,15 @@ pre{margin:0;padding:12px 14px;border-radius:8px;background:var(--bg-secondary);
           on the right. A dashed outline is a dead end — recorded so the same
           ground is not covered twice.
         </p>
+        <div class="row" style="padding:0 17px 10px;gap:8px;justify-content:flex-start">
+          <button class="btn" id="excalBtn" style="flex:none">Open in Excalidraw</button>
+          <span class="hint" style="flex:1;align-self:center">
+            Downloads the board as a scene. Drop it on
+            <a href="https://excalidraw.com" target="_blank" rel="noreferrer">excalidraw.com</a>
+            to move things where you want them, add what the campaign could not
+            know, and export a picture for the report.
+          </span>
+        </div>
         <div class="legend" id="mapLegend"></div>
         <div class="mapwrap"><svg id="mapSvg"></svg></div>
       </div>
@@ -1645,6 +1654,7 @@ $("#themeBtn").onclick = () =>
   applyTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark");
 
 $("#collapseBtn").onclick = () => $("#app").classList.toggle("rail");
+$("#excalBtn").onclick = downloadScene;
 
 function setCount(view, n) {
   state.counts[view] = n;
@@ -1903,6 +1913,23 @@ function drawLegend() {
   dead.append(document.createElement("i"), document.createTextNode("dead end"));
   items.push(dead);
   host.replaceChildren(...items);
+}
+
+// A scene file rather than the editor: the console carries no framework and
+// loads nothing from a CDN, and the part of Excalidraw worth having is the
+// editing, which happens in Excalidraw.
+async function downloadScene() {
+  if (!state.session || state.demo) return;
+  const res = await fetch(`/api/campaigns/${state.session}/map.excalidraw`);
+  if (!res.ok) return;
+  const blob = new Blob([await res.text()], {type: "application/json"});
+  const url = URL.createObjectURL(blob);
+  const link = Object.assign(document.createElement("a"),
+    {href: url, download: `${state.session}.excalidraw`});
+  document.body.append(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 }
 
 async function loadMap() {
